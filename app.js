@@ -22,6 +22,7 @@
         welcomeScreen: $('#welcomeScreen'),
         messagesContainer: $('#messagesContainer'),
         messagesList: $('#messagesList'),
+        scrollToBottomBtn: $('#scrollToBottomBtn'),
         
         messageInput: $('#messageInput'),
         sendBtn: $('#sendBtn'),
