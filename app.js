@@ -286,20 +286,42 @@
     }
 
     function bindEvents() {
+        // iOS keyboard handling: reposition input bar, don't let the page scroll
+        const inputWrapper = document.querySelector('.input-area-wrapper');
+        
         if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', () => {
-                const isKeyboardOpen = window.visualViewport.height < window.innerHeight - 100;
-                const wrapper = document.querySelector('.input-area-wrapper');
-                if (isKeyboardOpen) {
-                    wrapper.classList.add('keyboard-active');
-                    DOM.messagesContainer.style.paddingBottom = (window.innerHeight - window.visualViewport.height + 80) + 'px';
-                    DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+            const onViewportChange = () => {
+                const vvHeight = window.visualViewport.height;
+                const windowHeight = window.innerHeight;
+                const keyboardHeight = windowHeight - vvHeight;
+                
+                if (keyboardHeight > 100) {
+                    // Keyboard is open
+                    inputWrapper.style.bottom = keyboardHeight + 'px';
+                    inputWrapper.classList.add('keyboard-active');
+                    // Scroll messages to bottom
+                    requestAnimationFrame(() => {
+                        DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+                    });
                 } else {
-                    wrapper.classList.remove('keyboard-active');
-                    DOM.messagesContainer.style.paddingBottom = 'calc(var(--sab) + 120px)';
+                    // Keyboard is closed
+                    inputWrapper.style.bottom = '0';
+                    inputWrapper.classList.remove('keyboard-active');
                 }
+            };
+            window.visualViewport.addEventListener('resize', onViewportChange);
+            window.visualViewport.addEventListener('scroll', () => {
+                // Prevent iOS from scrolling the layout viewport
+                window.scrollTo(0, 0);
             });
         }
+
+        // Prevent iOS rubber-band scrolling on non-scrollable elements
+        document.addEventListener('touchmove', (e) => {
+            if (!e.target.closest('.messages-container, .conversation-list, .settings-body')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
 
         DOM.menuBtn.addEventListener('click', () => toggleDrawer(true));
         DOM.mainOverlay.addEventListener('click', () => toggleDrawer(false));

@@ -51,13 +51,14 @@ html[data-theme="dark"] .icon-sun { display: none !important; }
 html[data-theme="dark"] .icon-moon { display: block !important; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { font-size: 16px; height: 100%; overflow: hidden; }
+html { font-size: 16px; height: 100%; overflow: hidden; position: fixed; width: 100%; }
 body {
     font-family: var(--font-sans);
     background: var(--bg-app);
     color: var(--text-primary);
     height: 100%; overflow: hidden;
     -webkit-font-smoothing: antialiased;
+    position: fixed; width: 100%;
 }
 
 /* ========== Layout & 3D Drawer ========== */
@@ -87,13 +88,14 @@ body {
     z-index: 2;
     display: flex; flex-direction: column;
     transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1), border-radius 0.4s;
-    transform-origin: center right;
+    transform-origin: left center;
+    will-change: transform;
 }
 
 /* Sidebar Open State applied to main-view */
 .main-view.drawer-open {
-    transform: translateX(min(var(--drawer-width), var(--drawer-max-width))) scale(0.92);
-    border-radius: 32px;
+    transform: translateX(75%) scale(0.88);
+    border-radius: 24px;
     box-shadow: var(--shadow-drawer);
     overflow: hidden;
 }
@@ -202,23 +204,27 @@ html[data-theme="dark"] .welcome-title {
 /* ========== Floating Input Bar ========== */
 .input-area-wrapper {
     position: absolute; bottom: 0; left: 0; width: 100%;
-    padding: 10px 20px calc(var(--sab) + 10px);
+    padding: 10px 16px calc(var(--sab) + 10px);
     background: linear-gradient(to top, var(--bg-main) 60%, transparent);
     z-index: 50; display: flex; justify-content: center;
-    transition: padding 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    transition: bottom 0.28s cubic-bezier(0.25, 1, 0.5, 1),
+                padding 0.28s cubic-bezier(0.25, 1, 0.5, 1);
 }
-.input-area-wrapper.keyboard-active { padding-bottom: 10px; }
+.input-area-wrapper.keyboard-active {
+    padding: 10px 8px 10px;
+}
 .input-pill {
     width: 100%; max-width: 800px;
     background: var(--bg-input); border-radius: 30px;
     display: flex; align-items: flex-end; gap: 8px;
     padding: 6px 6px 6px 12px;
     min-height: 52px;
-    transition: max-width 0.3s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    transition: border-radius 0.28s cubic-bezier(0.25, 1, 0.5, 1);
 }
 .input-area-wrapper.keyboard-active .input-pill {
-    max-width: 100%; border-radius: 16px;
+    border-radius: 16px;
 }
+.messages-bottom-spacer { height: 0; }
 .message-input {
     flex: 1; border: none; background: transparent; color: var(--text-primary);
     font-size: 16px; font-family: var(--font-sans); resize: none; outline: none;
