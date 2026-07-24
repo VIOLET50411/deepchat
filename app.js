@@ -40,6 +40,7 @@
         
         searchBtnSidebar: $('#searchBtnSidebar'),
         searchOverlay: $('#searchOverlay'),
+        closeSearchBtn: $('#closeSearchBtn'),
         searchInput: $('#searchInput'),
         searchResults: $('#searchResults'),
         settingsProfile: $('#settingsProfile'),
@@ -486,6 +487,12 @@
         DOM.searchBtnSidebar.addEventListener('click', () => {
             DOM.searchOverlay.classList.add('active');
             DOM.searchInput.focus();
+            renderSearchResults(''); // Clears and hides results
+        });
+        
+        DOM.closeSearchBtn.addEventListener('click', () => {
+            DOM.searchOverlay.classList.remove('active');
+            DOM.searchInput.value = '';
             renderSearchResults('');
         });
         
@@ -493,6 +500,7 @@
             if (e.target === DOM.searchOverlay || e.target === DOM.searchResults) {
                 DOM.searchOverlay.classList.remove('active');
                 DOM.searchInput.value = '';
+                renderSearchResults('');
             }
         });
         
