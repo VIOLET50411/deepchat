@@ -305,39 +305,35 @@
     }
 
     function bindEvents() {
-        // 1. Setup absolute visual viewport sync (fixes iOS PWA keyboard and toolbar gaps)
-        const setupViewport = () => {
-            if (!window.visualViewport) return;
-            const vv = window.visualViewport;
-            const initialHeight = window.innerHeight;
-            const updateLayout = () => {
-                document.documentElement.style.setProperty('--vv-height', `${vv.height}px`);
-                // iOS doesn't reset safe-area when keyboard opens, which creates a floating gap.
-                // We detect keyboard by height shrinking, and remove safe-area via CSS class.
-                if (vv.height < initialHeight - 100) {
-                    document.body.classList.add('keyboard-open');
-                    // Auto-scroll chat to bottom
-                    if (DOM.messagesContainer) {
-                        DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
-                    }
-                } else {
-                    document.body.classList.remove('keyboard-open');
-                }
-            };
-            vv.addEventListener('resize', updateLayout);
-            vv.addEventListener('scroll', updateLayout);
-            updateLayout();
-        };
-        setupViewport();
-
-        // iOS keyboard handling: managed via setupViewport()
-        const inputWrapper = document.querySelector('.input-area-wrapper');
+        // iOS PWA viewport sync — drives the entire layout height.
+        // By setting .app-container height = visualViewport.height, everything
+        // inside (input bar, settings panel) naturally floats above the keyboard.
+        const appContainer = document.querySelector('.app-container');
         
         if (window.visualViewport) {
-            window.visualViewport.addEventListener('scroll', () => {
-                // Prevent iOS from scrolling the layout viewport
+            const vv = window.visualViewport;
+            const syncHeight = () => {
+                // Set the container to exactly the visible area
+                appContainer.style.height = vv.height + 'px';
+                
+                // Detect keyboard open/close for safe-area adjustments
+                const keyboardOpen = (window.innerHeight - vv.height) > 100;
+                document.body.classList.toggle('keyboard-open', keyboardOpen);
+                
+                if (keyboardOpen && DOM.messagesContainer) {
+                    requestAnimationFrame(() => {
+                        DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+                    });
+                }
+                
+                // Prevent iOS from offsetting the viewport
                 window.scrollTo(0, 0);
-            });
+            };
+            
+            vv.addEventListener('resize', syncHeight);
+            vv.addEventListener('scroll', syncHeight);
+            // Run immediately
+            syncHeight();
         }
 
         // Prevent iOS rubber-band scrolling on non-scrollable elements
