@@ -45,7 +45,7 @@
         searchResults: $('#searchResults'),
         settingsProfile: $('#settingsProfile'),
         profileAvatarBg: $('#profileAvatarBg'),
-        profileAvatarIcon: $('#profileAvatarIcon'),
+        profileAvatarInitials: $('#profileAvatarInitials'),
         avatarUploadInput: $('#avatarUploadInput'),
         profileName: $('#profileName')
     };
@@ -58,10 +58,13 @@
             DOM.profileAvatarBg.style.backgroundImage = `url(${state.settings.userAvatar})`;
             DOM.profileAvatarBg.style.backgroundSize = 'cover';
             DOM.profileAvatarBg.style.backgroundPosition = 'center';
-            if (DOM.profileAvatarIcon) DOM.profileAvatarIcon.style.display = 'none';
+            if (DOM.profileAvatarInitials) DOM.profileAvatarInitials.style.display = 'none';
         } else {
             if (DOM.profileAvatarBg) DOM.profileAvatarBg.style.backgroundImage = 'none';
-            if (DOM.profileAvatarIcon) DOM.profileAvatarIcon.style.display = 'block';
+            if (DOM.profileAvatarInitials) {
+                DOM.profileAvatarInitials.style.display = 'inline';
+                DOM.profileAvatarInitials.textContent = name.substring(0, 2).toUpperCase();
+            }
         }
     }
 

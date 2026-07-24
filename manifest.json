@@ -9,9 +9,9 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect x='8' y='8' width='496' height='496' rx='108' fill='%23ffffff' stroke='%23e5e5e5' stroke-width='16'/%3E%3Ctext x='256' y='320' text-anchor='middle' font-family='system-ui' font-weight='700' font-size='220' letter-spacing='-8' fill='%23111111'%3EDS%3C/text%3E%3C/svg%3E",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
+      "src": "./icon.jpg",
+      "sizes": "1024x1024",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     }
   ]
