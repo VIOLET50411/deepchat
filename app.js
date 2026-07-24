@@ -365,6 +365,9 @@
         DOM.settingsBtn.addEventListener('click', () => {
             DOM.apiKeyInput.value = state.settings.apiKey;
             DOM.modelSelect.value = state.settings.model;
+            // Update theme label
+            const themeText = document.getElementById('themeValueText');
+            if (themeText) themeText.textContent = DOM.html.getAttribute('data-theme') === 'dark' ? '深色' : '浅色';
             DOM.settingsOverlay.classList.add('active');
             DOM.settingsPanel.classList.add('active');
         });
@@ -378,6 +381,42 @@
         };
         DOM.closeSettingsBtn.addEventListener('click', closeSettings);
         DOM.settingsOverlay.addEventListener('click', closeSettings);
+
+        // Theme toggle inside settings
+        const themeSettingsRow = document.getElementById('themeSettingsRow');
+        if (themeSettingsRow) {
+            themeSettingsRow.addEventListener('click', () => {
+                toggleTheme();
+                const themeText = document.getElementById('themeValueText');
+                if (themeText) themeText.textContent = DOM.html.getAttribute('data-theme') === 'dark' ? '深色' : '浅色';
+            });
+        }
+
+        // Clear all conversations
+        const clearDataRow = document.getElementById('clearDataRow');
+        if (clearDataRow) {
+            clearDataRow.addEventListener('click', () => {
+                if (confirm('确定要清除所有对话记录吗？此操作不可撤回。')) {
+                    state.conversations = [];
+                    state.activeConversationId = null;
+                    saveData();
+                    renderConversationList();
+                    createConversation();
+                    closeSettings();
+                }
+            });
+        }
+
+        // Auto-save API key on change
+        DOM.apiKeyInput.addEventListener('change', () => {
+            state.settings.apiKey = DOM.apiKeyInput.value.trim();
+            saveData();
+            fetchBalance();
+        });
+        DOM.modelSelect.addEventListener('change', () => {
+            state.settings.model = DOM.modelSelect.value;
+            saveData();
+        });
 
         // --- Search Logic ---
         DOM.searchBtnSidebar.addEventListener('click', () => {
