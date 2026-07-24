@@ -194,22 +194,14 @@ html[data-theme="dark"] .main-overlay { background: rgba(0,0,0,0.3); }
 .welcome-title { 
     font-size: 26px; font-weight: 700;
     color: transparent;
-    /* Light mode: bright highlight at top fading to pure black — like a glossy surface */
-    background-image: linear-gradient(170deg,
-        #888888 0%,
-        #111111 28%,
-        #000000 55%,
-        #3a3a3a 100%);
+    /* Smooth sleek metallic gradient */
+    background-image: linear-gradient(135deg, #666666 0%, #000000 80%);
     -webkit-background-clip: text;
     background-clip: text;
     filter: drop-shadow(0 2px 8px rgba(0,0,0,0.18));
 }
 html[data-theme="dark"] .welcome-title {
-    background-image: linear-gradient(170deg,
-        #ffffff 0%,
-        #d0d0d0 30%,
-        #aaaaaa 60%,
-        #888888 100%);
+    background-image: linear-gradient(135deg, #ffffff 0%, #999999 80%);
     filter: drop-shadow(0 2px 12px rgba(255,255,255,0.12));
 }
 
