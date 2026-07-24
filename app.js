@@ -642,6 +642,53 @@
             }
         });
 
+        // ========== Action Buttons (Assistant) ==========
+        DOM.messagesList.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.action-btn');
+            if (!btn) return;
+            const action = btn.getAttribute('data-action');
+            const msgId = btn.getAttribute('data-id');
+            
+            const conv = state.conversations.find(c => c.id === state.activeConversationId);
+            if (!conv) return;
+            const msgIndex = conv.messages.findIndex(m => m.id === msgId);
+            if (msgIndex === -1) return;
+            const msg = conv.messages[msgIndex];
+
+            if (action === 'copy') {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(msg.content).then(() => {
+                        showToast('已复制');
+                    }).catch(() => {
+                        showToast('复制失败');
+                    });
+                } else {
+                    // Fallback for older browsers
+                    const textArea = document.createElement("textarea");
+                    textArea.value = msg.content;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        showToast('已复制');
+                    } catch (err) {
+                        showToast('复制失败');
+                    }
+                    document.body.removeChild(textArea);
+                }
+            } else if (action === 'regenerate') {
+                if (state.isGenerating) return;
+                // Truncate from this assistant message
+                conv.messages = conv.messages.slice(0, msgIndex);
+                renderActiveConversation('switch');
+                await callAPI(conv);
+            } else if (action === 'good') {
+                showToast('感谢反馈');
+            } else if (action === 'bad') {
+                showToast('我们会改进的');
+            }
+        });
+
         DOM.menuBtn.addEventListener('click', () => toggleDrawer(true));
         DOM.mainOverlay.addEventListener('click', () => toggleDrawer(false));
         DOM.closeSidebarBtn.addEventListener('click', () => toggleDrawer(false));
