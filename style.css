@@ -59,16 +59,20 @@ html[data-theme="dark"] .icon-sun { display: none !important; }
 html[data-theme="dark"] .icon-moon { display: block !important; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+:root {
+    --vv-height: 100vh;
+}
 html {
     font-size: 16px;
-    height: 100svh;
-    width: 100%; margin: 0; padding: 0;
+    height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden;
 }
 body {
     font-family: var(--font-sans);
     background: var(--bg-main);
     color: var(--text-primary);
-    height: 100svh; overflow: hidden;
+    position: fixed; top: 0; left: 0; right: 0;
+    height: var(--vv-height);
+    overflow: hidden;
     margin: 0; padding: 0;
     -webkit-font-smoothing: antialiased;
     width: 100%;
@@ -76,9 +80,8 @@ body {
 
 /* ========== Layout & 3D Drawer ========== */
 .app-container {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 100svh;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
     overflow: hidden;
     background: var(--bg-sidebar);
 }
@@ -247,11 +250,13 @@ html[data-theme="dark"] .welcome-title {
 /* ========== Floating Input Bar — Liquid Glass ========== */
 .input-area-wrapper {
     position: absolute; bottom: 0; left: 0; right: 0;
-    padding: 12px 16px 12px;
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
     background: var(--bg-main);
     z-index: 50; display: flex; justify-content: center;
-    transition: bottom 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+body.keyboard-open .input-area-wrapper {
+    padding-bottom: 12px;
 }
 .input-area-wrapper.keyboard-active {
     padding: 10px 10px 10px;
@@ -359,17 +364,18 @@ html[data-theme="dark"] .conv-item:hover, html[data-theme="dark"] .conv-item.act
 .settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.4s cubic-bezier(0.32, 0.72, 0, 1); }
 .settings-overlay.active { opacity: 1; pointer-events: auto; }
 .settings-panel {
-    position: fixed; bottom: 0; left: 0; width: 100%; 
+    position: absolute; bottom: 0; left: 0; width: 100%; 
     background: var(--bg-main);
     backdrop-filter: blur(40px) saturate(200%);
     -webkit-backdrop-filter: blur(40px) saturate(200%);
     border-radius: 24px 24px 0 0; z-index: 201; 
     transform: translateY(100%); 
     transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
-    padding: 20px 20px 20px;
-    /* Box shadow creates a fake background that stretches downwards 
-       to hide any gap if the panel is pushed up by the keyboard */
+    padding: 20px 20px max(20px, env(safe-area-inset-bottom));
     box-shadow: 0 500px 0 500px var(--bg-main);
+}
+body.keyboard-open .settings-panel {
+    padding-bottom: 20px;
 }
 .settings-panel.active { transform: translateY(0); }
 .settings-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 20px; font-weight: 700; }

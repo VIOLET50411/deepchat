@@ -305,32 +305,35 @@
     }
 
     function bindEvents() {
-        // iOS keyboard handling: reposition input bar, don't let the page scroll
+        // 1. Setup absolute visual viewport sync (fixes iOS PWA keyboard and toolbar gaps)
+        const setupViewport = () => {
+            if (!window.visualViewport) return;
+            const vv = window.visualViewport;
+            const initialHeight = window.innerHeight;
+            const updateLayout = () => {
+                document.documentElement.style.setProperty('--vv-height', `${vv.height}px`);
+                // iOS doesn't reset safe-area when keyboard opens, which creates a floating gap.
+                // We detect keyboard by height shrinking, and remove safe-area via CSS class.
+                if (vv.height < initialHeight - 100) {
+                    document.body.classList.add('keyboard-open');
+                    // Auto-scroll chat to bottom
+                    if (DOM.messagesContainer) {
+                        DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+                    }
+                } else {
+                    document.body.classList.remove('keyboard-open');
+                }
+            };
+            vv.addEventListener('resize', updateLayout);
+            vv.addEventListener('scroll', updateLayout);
+            updateLayout();
+        };
+        setupViewport();
+
+        // iOS keyboard handling: managed via setupViewport()
         const inputWrapper = document.querySelector('.input-area-wrapper');
         
         if (window.visualViewport) {
-            const onViewportChange = () => {
-                const vvHeight = window.visualViewport.height;
-                const windowHeight = window.innerHeight;
-                const keyboardHeight = windowHeight - vvHeight;
-                
-                if (keyboardHeight > 100) {
-                    // Keyboard is open
-                    inputWrapper.style.bottom = keyboardHeight + 'px';
-                    if (DOM.settingsPanel) DOM.settingsPanel.style.bottom = keyboardHeight + 'px';
-                    inputWrapper.classList.add('keyboard-active');
-                    // Scroll messages to bottom
-                    requestAnimationFrame(() => {
-                        DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
-                    });
-                } else {
-                    // Keyboard is closed
-                    inputWrapper.style.bottom = '0';
-                    if (DOM.settingsPanel) DOM.settingsPanel.style.bottom = '0';
-                    inputWrapper.classList.remove('keyboard-active');
-                }
-            };
-            window.visualViewport.addEventListener('resize', onViewportChange);
             window.visualViewport.addEventListener('scroll', () => {
                 // Prevent iOS from scrolling the layout viewport
                 window.scrollTo(0, 0);
