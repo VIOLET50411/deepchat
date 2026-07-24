@@ -305,35 +305,21 @@
     }
 
     function bindEvents() {
-        // iOS PWA viewport sync — drives the entire layout height.
-        // By setting .app-container height = visualViewport.height, everything
-        // inside (input bar, settings panel) naturally floats above the keyboard.
-        const appContainer = document.querySelector('.app-container');
-        
+        // iOS PWA keyboard detection — toggles .keyboard-open class
         if (window.visualViewport) {
             const vv = window.visualViewport;
-            const syncHeight = () => {
-                // Set the container to exactly the visible area
-                appContainer.style.height = vv.height + 'px';
-                
-                // Detect keyboard open/close for safe-area adjustments
+            const syncKeyboard = () => {
                 const keyboardOpen = (window.innerHeight - vv.height) > 100;
                 document.body.classList.toggle('keyboard-open', keyboardOpen);
-                
                 if (keyboardOpen && DOM.messagesContainer) {
                     requestAnimationFrame(() => {
                         DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
                     });
                 }
-                
-                // Prevent iOS from offsetting the viewport
                 window.scrollTo(0, 0);
             };
-            
-            vv.addEventListener('resize', syncHeight);
-            vv.addEventListener('scroll', syncHeight);
-            // Run immediately
-            syncHeight();
+            vv.addEventListener('resize', syncKeyboard);
+            vv.addEventListener('scroll', syncKeyboard);
         }
 
         // Prevent iOS rubber-band scrolling on non-scrollable elements
