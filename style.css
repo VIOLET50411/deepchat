@@ -538,7 +538,8 @@ html[data-theme="dark"] .settings-divider { background: #38383a; }
 }
 .search-overlay.active { opacity: 1; pointer-events: auto; }
 .search-header {
-    padding: 16px 20px 16px 16px; border-bottom: 1px solid var(--border-light);
+    padding: calc(env(safe-area-inset-top) + 12px) 20px 16px 16px; 
+    border-bottom: 1px solid var(--border-light);
     display: flex; gap: 8px; align-items: center;
 }
 .search-back-btn {
