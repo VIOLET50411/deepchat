@@ -541,6 +541,8 @@
 
         let pressTimer = null;
         let isLongPress = false;
+        let startX = 0;
+        let startY = 0;
 
         function handlePressStart(e) {
             if (e.button === 2) return; // ignore right click
@@ -551,6 +553,14 @@
             // only allow user messages to be edited for now
             if (msgEl.classList.contains('assistant')) return;
             
+            if (e.touches && e.touches.length > 0) {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+            } else {
+                startX = e.clientX;
+                startY = e.clientY;
+            }
+            
             isLongPress = false;
             pressTimer = setTimeout(() => {
                 isLongPress = true;
@@ -559,7 +569,21 @@
             }, 500);
         }
         function handlePressEnd() { if (pressTimer) clearTimeout(pressTimer); }
-        function handlePressMove() { if (pressTimer) clearTimeout(pressTimer); }
+        function handlePressMove(e) { 
+            if (!pressTimer) return;
+            let currentX, currentY;
+            if (e.touches && e.touches.length > 0) {
+                currentX = e.touches[0].clientX;
+                currentY = e.touches[0].clientY;
+            } else {
+                currentX = e.clientX;
+                currentY = e.clientY;
+            }
+            // Cancel long press only if finger moves more than 10 pixels
+            if (Math.abs(currentX - startX) > 10 || Math.abs(currentY - startY) > 10) {
+                clearTimeout(pressTimer);
+            }
+        }
 
         DOM.messagesList.addEventListener('touchstart', handlePressStart, {passive: true});
         DOM.messagesList.addEventListener('touchend', handlePressEnd);
