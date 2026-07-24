@@ -503,6 +503,8 @@
             query = query.toLowerCase().trim();
             DOM.searchResults.innerHTML = '';
             
+            if (!query) return; // Hide results if no search term
+            
             let results = state.conversations;
             if (query) {
                 results = results.filter(c => {
@@ -513,7 +515,12 @@
             }
             
             if (results.length === 0) {
-                DOM.searchResults.innerHTML = '<div style="text-align:center; padding:40px 20px; color:var(--text-secondary);">无结果</div>';
+                DOM.searchResults.innerHTML = `
+                    <div style="text-align:center; padding:60px 20px; color:var(--text-secondary); display:flex; flex-direction:column; align-items:center;">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px; opacity:0.6;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <div>暂无相关结果</div>
+                    </div>
+                `;
                 return;
             }
             
@@ -528,9 +535,10 @@
                     snippet = matchMsg ? matchMsg.content : conv.messages[conv.messages.length - 1].content;
                 }
                 
-                // Format date (simplified)
-                const date = new Date(conv.updatedAt || conv.id);
-                const dateStr = `${date.getMonth()+1}月${date.getDate()}日`;
+                // Format date correctly by ensuring it's a number
+                const ts = Number(conv.updatedAt || conv.id);
+                const date = new Date(ts);
+                const dateStr = !isNaN(date) ? `${date.getMonth()+1}月${date.getDate()}日` : '';
                 
                 item.innerHTML = `
                     <div class="search-result-icon">
