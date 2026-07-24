@@ -2,7 +2,7 @@
     'use strict';
 
     const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme' };
-    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 4096, systemPrompt: '', userName: 'Locin' };
+    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 4096, systemPrompt: '', userName: 'Locin', userAvatar: null };
 
     let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null };
 
@@ -43,18 +43,28 @@
         closeSearchBtn: $('#closeSearchBtn'),
         searchInput: $('#searchInput'),
         searchResults: $('#searchResults'),
-        
         settingsProfile: $('#settingsProfile'),
+        profileAvatarBg: $('#profileAvatarBg'),
         profileAvatarInitials: $('#profileAvatarInitials'),
+        avatarUploadInput: $('#avatarUploadInput'),
         profileName: $('#profileName')
     };
 
     function updateProfileUI() {
         const name = state.settings.userName || 'Locin';
         if (DOM.profileName) DOM.profileName.textContent = name;
-        if (DOM.profileAvatarInitials) {
-            // Get up to 2 characters for initials
-            DOM.profileAvatarInitials.textContent = name.substring(0, 2).toUpperCase();
+        
+        if (state.settings.userAvatar && DOM.profileAvatarBg) {
+            DOM.profileAvatarBg.style.backgroundImage = `url(${state.settings.userAvatar})`;
+            DOM.profileAvatarBg.style.backgroundSize = 'cover';
+            DOM.profileAvatarBg.style.backgroundPosition = 'center';
+            if (DOM.profileAvatarInitials) DOM.profileAvatarInitials.style.display = 'none';
+        } else {
+            if (DOM.profileAvatarBg) DOM.profileAvatarBg.style.backgroundImage = 'none';
+            if (DOM.profileAvatarInitials) {
+                DOM.profileAvatarInitials.style.display = 'inline';
+                DOM.profileAvatarInitials.textContent = name.substring(0, 2).toUpperCase();
+            }
         }
     }
 
@@ -403,14 +413,36 @@
         DOM.settingsOverlay.addEventListener('click', closeSettings);
 
         // Edit Profile
-        if (DOM.settingsProfile) {
-            DOM.settingsProfile.addEventListener('click', () => {
+        if (DOM.profileName) {
+            DOM.profileName.addEventListener('click', (e) => {
+                e.stopPropagation();
                 const currentName = state.settings.userName || 'Locin';
                 const newName = prompt('修改你的名字：', currentName);
                 if (newName && newName.trim()) {
                     state.settings.userName = newName.trim();
                     saveData();
                     updateProfileUI();
+                }
+            });
+        }
+        
+        // Upload Avatar
+        if (DOM.profileAvatarBg && DOM.avatarUploadInput) {
+            DOM.profileAvatarBg.addEventListener('click', (e) => {
+                e.stopPropagation();
+                DOM.avatarUploadInput.click();
+            });
+            
+            DOM.avatarUploadInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        state.settings.userAvatar = event.target.result;
+                        saveData();
+                        updateProfileUI();
+                    };
+                    reader.readAsDataURL(file);
                 }
             });
         }
