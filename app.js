@@ -4,7 +4,7 @@
     const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme' };
     const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 4096, systemPrompt: '', userName: 'Locin', userAvatar: null, currentBalance: null, baseBalance: null };
 
-    let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null };
+    let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null, streamBuffer: '', renderedContent: '', streamRAFId: null, isThinking: false };
 
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => document.querySelectorAll(sel);
@@ -177,6 +177,15 @@
     };
 
     function createMessageHTML(m) {
+        if (m.isThinking) {
+            return `
+                <div class="message assistant">
+                    <div class="thinking-graphic-container">
+                        <div class="thinking-orb"></div>
+                    </div>
+                </div>
+            `;
+        }
         return `
             <div class="message ${m.role}">
                 <div class="message-bubble">${renderMarkdown(m.content)}</div>
@@ -192,21 +201,52 @@
         `;
     }
 
+    function startStreamRenderer() {
+        if (state.streamRAFId) cancelAnimationFrame(state.streamRAFId);
+        
+        let lastTime = performance.now();
+        const renderLoop = (time) => {
+            const dt = time - lastTime;
+            const diff = state.streamBuffer.length - state.renderedContent.length;
+            
+            if (diff > 0) {
+                let chunkSize = 1;
+                if (diff > 100) chunkSize = Math.ceil(diff / 5);
+                else if (diff > 20) chunkSize = Math.ceil(diff / 10);
+                else if (diff > 5) chunkSize = 2;
+                
+                state.renderedContent += state.streamBuffer.substring(state.renderedContent.length, state.renderedContent.length + chunkSize);
+                
+                const lastEl = DOM.messagesList.lastElementChild;
+                if (lastEl && lastEl.classList.contains('assistant')) {
+                    const bubble = lastEl.querySelector('.message-bubble');
+                    if (bubble) {
+                        bubble.innerHTML = renderMarkdown(state.renderedContent);
+                        const container = DOM.messagesContainer;
+                        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200;
+                        if (isNearBottom) container.scrollTop = container.scrollHeight;
+                    }
+                }
+            } else if (!state.isGenerating && diff === 0) {
+                stopStreamRenderer();
+                return;
+            }
+            
+            lastTime = time;
+            state.streamRAFId = requestAnimationFrame(renderLoop);
+        };
+        state.streamRAFId = requestAnimationFrame(renderLoop);
+    }
+
+    function stopStreamRenderer() {
+        if (state.streamRAFId) {
+            cancelAnimationFrame(state.streamRAFId);
+            state.streamRAFId = null;
+        }
+    }
+
     function renderActiveConversation(mode = 'switch') {
         const conv = state.conversations.find(c => c.id === state.activeConversationId);
-        
-        if (mode === 'stream') {
-            const lastMsg = conv.messages[conv.messages.length - 1];
-            const lastEl = DOM.messagesList.lastElementChild;
-            if (lastEl && lastEl.classList.contains(lastMsg.role)) {
-                const bubble = lastEl.querySelector('.message-bubble');
-                if (bubble) bubble.innerHTML = renderMarkdown(lastMsg.content);
-                const container = DOM.messagesContainer;
-                const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200;
-                if (isNearBottom) container.scrollTop = container.scrollHeight;
-            }
-            return;
-        }
 
         if (mode === 'append') {
             if (!conv || conv.messages.length === 0) return;
@@ -271,9 +311,13 @@
     async function callAPI(conv) {
         setGeneratingState(true);
         state.abortController = new AbortController();
+        
+        state.isThinking = true;
+        state.streamBuffer = '';
+        state.renderedContent = '';
 
-        // Add placeholder AI message
-        conv.messages.push({ role: 'assistant', content: '...' });
+        // Add placeholder AI message (Thinking State)
+        conv.messages.push({ role: 'assistant', content: '', isThinking: true });
         renderActiveConversation('append');
 
         try {
@@ -313,9 +357,17 @@
                         try {
                             const data = JSON.parse(line.slice(6));
                             if (data.choices[0].delta.content) {
-                                fullContent += data.choices[0].delta.content;
-                                conv.messages[conv.messages.length - 1].content = fullContent;
-                                renderActiveConversation('stream');
+                                if (state.isThinking) {
+                                    state.isThinking = false;
+                                    conv.messages[conv.messages.length - 1].isThinking = false;
+                                    
+                                    const lastEl = DOM.messagesList.lastElementChild;
+                                    if (lastEl) lastEl.outerHTML = createMessageHTML(conv.messages[conv.messages.length - 1]);
+                                    
+                                    startStreamRenderer();
+                                }
+                                state.streamBuffer += data.choices[0].delta.content;
+                                conv.messages[conv.messages.length - 1].content = state.streamBuffer;
                             }
                         } catch (e) {}
                     }
@@ -323,11 +375,17 @@
             }
         } catch (e) {
             if (e.name !== 'AbortError') {
+                conv.messages[conv.messages.length - 1].isThinking = false;
                 conv.messages[conv.messages.length - 1].content = '发送失败，请检查网络或 API Key。';
                 renderActiveConversation('append');
             }
         } finally {
             setGeneratingState(false);
+            if (state.isThinking) {
+                // If aborted or failed during thinking state
+                conv.messages[conv.messages.length - 1].isThinking = false;
+                renderActiveConversation('append');
+            }
             saveData();
         }
     }
