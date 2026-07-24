@@ -181,7 +181,10 @@
             return `
                 <div class="message assistant">
                     <div class="thinking-graphic-container">
-                        <div class="thinking-orb"></div>
+                        <div class="thinking-core"></div>
+                        <div class="thinking-particle particle-1"></div>
+                        <div class="thinking-particle particle-2"></div>
+                        <div class="thinking-particle particle-3"></div>
                     </div>
                 </div>
             `;

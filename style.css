@@ -229,29 +229,60 @@ html[data-theme="dark"] .message.user .message-bubble {
     background: transparent; border-radius: 0; padding: 0; max-width: 100%;
 }
 
-@keyframes liquid-morph {
-    0%   { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; transform: rotate(0deg) scale(0.95); }
-    34%  { border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%; transform: rotate(120deg) scale(1.05); }
-    67%  { border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%; transform: rotate(240deg) scale(1.1); }
-    100% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; transform: rotate(360deg) scale(0.95); }
+@keyframes core-morph {
+    0%   { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; transform: scale(1); opacity: 0.9; }
+    50%  { border-radius: 70% 30% 50% 70% / 50% 60% 40% 60%; transform: scale(1.08); opacity: 1; }
+    100% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; transform: scale(1); opacity: 0.9; }
+}
+
+@keyframes particle-1-move {
+    0%   { transform: translate(0px, 0px) scale(1); opacity: 0.4; }
+    50%  { transform: translate(12px, 18px) scale(1.2); opacity: 0.8; }
+    100% { transform: translate(0px, 0px) scale(1); opacity: 0.4; }
+}
+
+@keyframes particle-2-move {
+    0%   { transform: translate(0px, 0px) scale(1); opacity: 0.5; }
+    50%  { transform: translate(-15px, 10px) scale(0.8); opacity: 0.9; }
+    100% { transform: translate(0px, 0px) scale(1); opacity: 0.5; }
+}
+
+@keyframes particle-3-move {
+    0%   { transform: translate(0px, 0px) scale(1); opacity: 0.3; }
+    50%  { transform: translate(10px, -15px) scale(1.1); opacity: 0.7; }
+    100% { transform: translate(0px, 0px) scale(1); opacity: 0.3; }
 }
 
 .thinking-graphic-container {
-    width: 24px; height: 24px;
-    margin: 4px 0 16px;
+    position: relative;
+    width: 60px; height: 60px;
+    margin: 8px 0 16px;
     display: flex; align-items: center; justify-content: center;
     transition: opacity 0.3s, transform 0.3s;
 }
-.thinking-orb {
-    width: 100%; height: 100%;
+
+.thinking-core {
+    position: absolute;
+    width: 44px; height: 44px;
     background: #000;
-    animation: liquid-morph 3s linear infinite;
-    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.15));
+    animation: core-morph 2.5s ease-in-out infinite;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.1));
 }
-html[data-theme="dark"] .thinking-orb {
+html[data-theme="dark"] .thinking-core {
     background: #fff;
-    filter: drop-shadow(0 2px 8px rgba(255,255,255,0.15));
+    filter: drop-shadow(0 2px 8px rgba(255,255,255,0.1));
 }
+
+.thinking-particle {
+    position: absolute;
+    background: #000;
+    border-radius: 50%;
+}
+html[data-theme="dark"] .thinking-particle { background: #fff; }
+
+.particle-1 { width: 6px; height: 6px; top: 5%; left: 10%; animation: particle-1-move 4s ease-in-out infinite; }
+.particle-2 { width: 8px; height: 8px; top: 15%; right: 5%; animation: particle-2-move 5s ease-in-out infinite; }
+.particle-3 { width: 4px; height: 4px; bottom: 5%; left: 25%; animation: particle-3-move 6s ease-in-out infinite; }
 
 .message-bubble ul, .message-bubble ol {
     padding-left: 24px;
