@@ -59,12 +59,18 @@ html[data-theme="dark"] .icon-sun { display: none !important; }
 html[data-theme="dark"] .icon-moon { display: block !important; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { font-size: 16px; height: 100%; overflow: hidden; width: 100%; margin: 0; padding: 0; }
+html {
+    font-size: 16px;
+    /* svh = Small Viewport Height — excludes browser chrome. The only reliable
+       unit that fills the screen exactly in both Safari and PWA standalone mode */
+    height: 100svh;
+    overflow: hidden; width: 100%; margin: 0; padding: 0;
+}
 body {
     font-family: var(--font-sans);
-    background: var(--bg-main); /* Match main view — hides any gap */
+    background: var(--bg-main);
     color: var(--text-primary);
-    height: 100%; overflow: hidden;
+    height: 100svh; overflow: hidden;
     margin: 0; padding: 0;
     -webkit-font-smoothing: antialiased;
     width: 100%;
@@ -72,8 +78,9 @@ body {
 
 /* ========== Layout & 3D Drawer ========== */
 .app-container {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 100svh;
     overflow: hidden;
     background: var(--bg-sidebar);
 }
@@ -360,7 +367,12 @@ html[data-theme="dark"] .conv-item:hover, html[data-theme="dark"] .conv-item.act
     -webkit-backdrop-filter: blur(40px) saturate(200%);
     border-radius: 24px 24px 0 0; z-index: 201; transform: translateY(100%); 
     transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
-    padding: 20px 20px calc(var(--sab) + 20px);
+    padding: 20px 20px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    /* Allow panel to scroll its content so keyboard never blocks input */
+    max-height: 85svh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 .settings-panel.active { transform: translateY(0); }
 .settings-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 20px; font-weight: 700; }
