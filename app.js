@@ -211,8 +211,8 @@
             if (!conv || conv.messages.length === 0) return;
             DOM.welcomeScreen.classList.add('hidden');
             const now = new Date();
-            const timeStr = \`今天 \${now.getHours()}:\${String(now.getMinutes()).padStart(2,'0')}\`;
-            const dateHTML = \`<div class="message-date">\${timeStr}</div>\`;
+            const timeStr = `今天 ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+            const dateHTML = `<div class="message-date">${timeStr}</div>`;
             DOM.messagesList.innerHTML = dateHTML + conv.messages.map(m => createMessageHTML(m)).join('');
             DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
             return;
@@ -227,8 +227,8 @@
             } else {
                 DOM.welcomeScreen.classList.add('hidden');
                 const now = new Date();
-                const timeStr = \`今天 \${now.getHours()}:\${String(now.getMinutes()).padStart(2,'0')}\`;
-                const dateHTML = \`<div class="message-date">\${timeStr}</div>\`;
+                const timeStr = `今天 ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+                const dateHTML = `<div class="message-date">${timeStr}</div>`;
                 DOM.messagesList.innerHTML = dateHTML + conv.messages.map(m => createMessageHTML(m)).join('');
                 DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
             }
