@@ -355,7 +355,7 @@ html[data-theme="dark"] .conv-item:hover, html[data-theme="dark"] .conv-item.act
     box-shadow: var(--glass-shadow) !important;
 }
 
-/* Settings Panel — Bottom Sheet Drawer (ChatGPT iOS style) */
+/* Settings Panel — Pixel-Perfect ChatGPT iOS */
 .settings-overlay {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.3);
@@ -368,8 +368,7 @@ html[data-theme="dark"] .conv-item:hover, html[data-theme="dark"] .conv-item.act
 .settings-panel {
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    /* Drawer height: covers ~88% of screen, like ChatGPT */
-    height: 88%;
+    height: 90%;
     z-index: 201;
     transform: translateY(100%);
     transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
@@ -381,170 +380,147 @@ html[data-theme="dark"] .conv-item:hover, html[data-theme="dark"] .conv-item.act
 }
 
 .settings-inner {
-    position: absolute;
-    inset: 0;
+    position: absolute; inset: 0;
     background: #f2f2f7;
-    border-radius: 16px 16px 0 0;
+    border-radius: 32px 32px 0 0;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    display: flex; flex-direction: column;
 }
-html[data-theme="dark"] .settings-inner {
-    background: #000000;
-}
+html[data-theme="dark"] .settings-inner { background: #000000; }
 
-/* Close button — sits inside the inner sheet, top-right */
 .settings-close-btn {
     position: absolute;
     top: 16px; right: 16px;
-    width: 30px; height: 30px;
-    border-radius: 50%;
-    border: none;
-    background: rgba(120,120,128,0.12);
-    color: var(--text-secondary);
+    width: 32px; height: 32px;
+    border-radius: 16px; border: none;
+    background: #ffffff;
+    color: #000000;
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    z-index: 10;
+    cursor: pointer; z-index: 10;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
     transition: transform 0.12s, opacity 0.12s;
 }
 html[data-theme="dark"] .settings-close-btn {
-    background: rgba(120,120,128,0.32);
+    background: #1c1c1e; color: #ffffff;
 }
 .settings-close-btn:active { transform: scale(0.85); opacity: 0.6; }
 
-/* Scrollable content */
 .settings-scroll {
     flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 52px 16px env(safe-area-inset-bottom, 20px);
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 0 16px;
+    padding-bottom: max(32px, env(safe-area-inset-bottom));
 }
 
-/* Section label — colored text like ChatGPT iOS */
-.settings-section-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    padding: 20px 16px 8px;
+/* Profile Area */
+.settings-profile {
+    display: flex; flex-direction: column; align-items: center;
+    margin-top: 40px; margin-bottom: 24px;
 }
-.settings-section-label:first-child { padding-top: 8px; }
-
-/* Grouped card container — white rounded rectangle */
-.settings-card {
-    background: var(--bg-main);
-    border-radius: 10px;
-    overflow: hidden;
-    margin-bottom: 0;
-}
-
-/* Individual row — matches ChatGPT exactly */
-.settings-row {
-    display: flex;
-    align-items: center;
-    padding: 11px 16px;
-    gap: 16px;
-    min-height: 44px;
-    position: relative;
-    cursor: pointer;
-    transition: background 0.1s;
-}
-.settings-row:active {
-    background: rgba(0,0,0,0.04);
-}
-html[data-theme="dark"] .settings-row:active {
-    background: rgba(255,255,255,0.06);
-}
-
-/* Hairline separator between rows — starts after icon */
-.settings-row + .settings-row::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 56px; right: 0;
-    height: 0.33px;
-    background: rgba(60,60,67,0.29);
-}
-html[data-theme="dark"] .settings-row + .settings-row::before {
-    background: rgba(84,84,88,0.65);
-}
-
-/* Row icon — outline style, no colored background */
-.settings-row-icon {
-    width: 28px; height: 28px;
-    border-radius: 6px;
+.profile-avatar {
+    width: 76px; height: 76px;
+    border-radius: 38px;
+    background: #c6392b;
+    color: #ffffff;
     display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    font-size: 28px; font-weight: 500;
+    position: relative;
+    margin-bottom: 12px;
+}
+.profile-edit-badge {
+    position: absolute;
+    bottom: -2px; right: -2px;
+    width: 28px; height: 28px;
+    background: #ffffff;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    color: #000;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+html[data-theme="dark"] .profile-edit-badge { background: #1c1c1e; color: #fff; }
+.profile-name {
+    font-size: 22px; font-weight: 700; color: var(--text-primary);
 }
 
-/* Row label */
-.settings-row-label {
-    font-size: 17px;
-    font-weight: 400;
-    color: var(--text-primary);
-    flex: 1;
-    line-height: 1.29;
+/* Sections */
+.settings-section-title {
+    font-size: 13px; font-weight: 700;
+    color: #8e8e93;
+    padding: 0 16px 8px;
 }
+.settings-card {
+    background: #ffffff;
+    border-radius: 20px;
+    margin-bottom: 24px;
+    overflow: hidden;
+}
+html[data-theme="dark"] .settings-card { background: #1c1c1e; }
 
-/* Row value text — right aligned, gray */
-.settings-row-value {
-    font-size: 17px;
-    color: var(--text-secondary);
-    white-space: nowrap;
-}
-
-/* Chevron arrow */
-.settings-row-chevron {
-    color: rgba(60,60,67,0.3);
-    flex-shrink: 0;
-}
-html[data-theme="dark"] .settings-row-chevron {
-    color: rgba(235,235,245,0.3);
-}
-
-/* Row content — for inline input fields */
-.settings-row-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-/* Inline text input */
-.settings-row-input {
-    background: transparent;
-    border: none;
-    border-bottom: 0.5px solid rgba(60,60,67,0.18);
-    color: var(--text-primary);
-    font-size: 17px;
-    font-family: var(--font-sans);
-    padding: 6px 0;
-    outline: none;
-    width: 100%;
-    transition: border-color 0.2s;
-}
-html[data-theme="dark"] .settings-row-input {
-    border-bottom-color: rgba(84,84,88,0.4);
-}
-.settings-row-input:focus {
-    border-bottom-color: var(--blue-action);
-}
-.settings-row-input::placeholder {
-    color: var(--text-placeholder);
-}
-
-/* Inline select */
-.settings-row-select {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    font-size: 17px;
-    font-family: var(--font-sans);
-    padding: 0;
-    outline: none;
-    -webkit-appearance: none;
-    appearance: none;
+.settings-row {
+    display: flex; align-items: center;
+    padding: 12px 16px;
+    min-height: 52px;
     cursor: pointer;
-    text-align: right;
+    position: relative;
+}
+.settings-row:active { background: rgba(0,0,0,0.04); }
+html[data-theme="dark"] .settings-row:active { background: rgba(255,255,255,0.06); }
+
+.settings-icon {
+    color: var(--text-primary);
+    margin-right: 14px;
+    flex-shrink: 0;
+}
+.settings-label {
+    font-size: 17px; font-weight: 400;
+    color: var(--text-primary);
+    flex: 1;
+}
+.settings-value {
+    font-size: 17px;
+    color: #8e8e93;
+    display: flex; align-items: center;
+}
+.settings-chevron {
+    color: #c7c7cc;
+    margin-left: 10px; flex-shrink: 0;
+}
+.settings-select-icon {
+    color: #c7c7cc; margin-left: 8px; flex-shrink: 0;
+}
+
+.settings-divider {
+    height: 0.5px;
+    background: #e5e5ea;
+    margin-left: 54px;
+}
+html[data-theme="dark"] .settings-divider { background: #38383a; }
+
+/* Inline Inputs inside Row */
+.settings-value-input {
+    background: transparent; border: none;
+    color: #8e8e93; font-size: 17px; font-family: var(--font-sans);
+    text-align: right; outline: none; width: 140px;
+}
+.settings-value-input:focus { color: var(--blue-action); }
+.settings-value-select {
+    background: transparent; border: none;
+    color: #8e8e93; font-size: 17px; font-family: var(--font-sans);
+    text-align: right; outline: none; -webkit-appearance: none; appearance: none;
+    direction: rtl; cursor: pointer;
+}
+
+.settings-row-purple .settings-icon,
+.settings-row-purple .settings-label {
+    color: #8e44ad;
+}
+
+.color-dot {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border-radius: 6px;
+    background: var(--text-primary);
+    margin-right: 6px;
 }
 
 /* Markdown & Code styling */
