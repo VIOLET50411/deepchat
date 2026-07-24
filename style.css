@@ -63,7 +63,6 @@ html {
     font-size: 16px;
     height: 100%;
     width: 100%; margin: 0; padding: 0; overflow: hidden;
-    /* Match theme to hide any residual PWA bottom gap */
     background: var(--bg-main);
 }
 body {
@@ -79,9 +78,7 @@ body {
 /* ========== Layout & 3D Drawer ========== */
 .app-container {
     position: fixed;
-    top: 0; left: 0; right: 0;
-    /* JS sets --app-height to window.innerHeight for iOS PWA */
-    height: var(--app-height, 100vh);
+    inset: 0;
     overflow: hidden;
     background: var(--bg-sidebar);
 }
@@ -253,7 +250,7 @@ html[data-theme="dark"] .welcome-title {
     padding: 12px 16px max(12px, env(safe-area-inset-bottom));
     background: var(--bg-main);
     z-index: 50; display: flex; justify-content: center;
-    transition: padding 0.18s ease-out;
+    transition: transform 0.15s cubic-bezier(0.2, 0.9, 0.3, 1), padding 0.18s ease-out;
 }
 body.keyboard-open .input-area-wrapper {
     padding-bottom: 12px;

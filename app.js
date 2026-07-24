@@ -327,34 +327,35 @@
     }
 
     function bindEvents() {
-        // iOS PWA height fix — set --app-height to actual window height
-        // This is the ONLY reliable method for iOS PWA standalone mode
-        // where 100vh, 100dvh, -webkit-fill-available, inset:0 ALL fail
-        function setAppHeight() {
-            const h = window.innerHeight;
-            document.documentElement.style.setProperty('--app-height', h + 'px');
-        }
-        setAppHeight();
-        window.addEventListener('resize', setAppHeight);
-        window.addEventListener('orientationchange', () => {
-            setTimeout(setAppHeight, 100);
-        });
-
-        // iOS PWA keyboard detection
+        // iOS PWA keyboard float handling — floats input wrapper directly above keyboard
         if (window.visualViewport) {
             const vv = window.visualViewport;
+            const inputWrapper = document.querySelector('.input-area-wrapper');
+            
             const syncKeyboard = () => {
-                const keyboardOpen = (window.innerHeight - vv.height) > 100;
+                const offset = window.innerHeight - vv.height - (vv.offsetTop || 0);
+                const keyboardOpen = offset > 100;
+                
                 document.body.classList.toggle('keyboard-open', keyboardOpen);
-                if (keyboardOpen && DOM.messagesContainer) {
-                    requestAnimationFrame(() => {
-                        DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
-                    });
+                
+                if (keyboardOpen && inputWrapper) {
+                    // Float input bar up above iOS native keyboard
+                    inputWrapper.style.transform = `translateY(-${offset}px)`;
+                    if (DOM.messagesContainer) {
+                        requestAnimationFrame(() => {
+                            DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+                        });
+                    }
+                } else if (inputWrapper) {
+                    inputWrapper.style.transform = '';
                 }
+                
                 window.scrollTo(0, 0);
             };
+            
             vv.addEventListener('resize', syncKeyboard);
             vv.addEventListener('scroll', syncKeyboard);
+            syncKeyboard();
         }
 
         // Prevent iOS rubber-band scrolling on non-scrollable elements
