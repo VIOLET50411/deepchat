@@ -15,7 +15,6 @@
         mainOverlay: $('#mainOverlay'),
         menuBtn: $('#menuBtn'),
         closeSidebarBtn: $('#closeSidebarBtn'),
-        newChatBtnSidebar: $('#newChatBtnSidebar'),
         newChatBtnMain: $('#newChatBtnMain'),
         themeToggle: $('#themeToggle'),
         
@@ -334,7 +333,7 @@
         DOM.closeSidebarBtn.addEventListener('click', () => toggleDrawer(false));
         
         DOM.newChatBtnMain.addEventListener('click', createConversation);
-        DOM.newChatBtnSidebar.addEventListener('click', createConversation);
+        
         DOM.themeToggle.addEventListener('click', toggleTheme);
         
         DOM.messageInput.addEventListener('input', handleInputState);

@@ -326,7 +326,7 @@ html[data-theme="dark"] .conv-item:hover, html[data-theme="dark"] .conv-item.act
 
 .sidebar-footer {
     padding: 16px 20px calc(var(--sab) + 16px);
-    display: flex; align-items: center; gap: 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
     border-top: 1px solid var(--border-color);
 }
 .btn-chat-blue {
