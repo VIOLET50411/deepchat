@@ -37,7 +37,13 @@
         modelSelect: $('#modelSelect'),
         
         balanceText: $('#balanceText'),
-        balanceRingFill: $('#balanceRingFill')
+        balanceRingFill: $('#balanceRingFill'),
+        
+        searchBtnSidebar: $('#searchBtnSidebar'),
+        searchOverlay: $('#searchOverlay'),
+        closeSearchBtn: $('#closeSearchBtn'),
+        searchInput: $('#searchInput'),
+        searchResults: $('#searchResults')
     };
 
     function initTheme() {
@@ -358,6 +364,78 @@
         };
         DOM.closeSettingsBtn.addEventListener('click', closeSettings);
         DOM.settingsOverlay.addEventListener('click', closeSettings);
+
+        // --- Search Logic ---
+        DOM.searchBtnSidebar.addEventListener('click', () => {
+            DOM.searchOverlay.classList.add('active');
+            DOM.searchInput.focus();
+            renderSearchResults('');
+        });
+        
+        DOM.closeSearchBtn.addEventListener('click', () => {
+            DOM.searchOverlay.classList.remove('active');
+            DOM.searchInput.value = '';
+        });
+        
+        DOM.searchInput.addEventListener('input', (e) => {
+            renderSearchResults(e.target.value);
+        });
+        
+        function renderSearchResults(query) {
+            query = query.toLowerCase().trim();
+            DOM.searchResults.innerHTML = '';
+            
+            let results = state.conversations;
+            if (query) {
+                results = results.filter(c => {
+                    const titleMatch = c.title && c.title.toLowerCase().includes(query);
+                    const msgMatch = c.messages.some(m => m.content.toLowerCase().includes(query));
+                    return titleMatch || msgMatch;
+                });
+            }
+            
+            if (results.length === 0) {
+                DOM.searchResults.innerHTML = '<div style="text-align:center; padding:40px 20px; color:var(--text-secondary);">无结果</div>';
+                return;
+            }
+            
+            results.forEach(conv => {
+                const item = document.createElement('div');
+                item.className = 'search-result-item';
+                
+                // Get a snippet
+                let snippet = '没有内容...';
+                if (conv.messages.length > 0) {
+                    const matchMsg = conv.messages.find(m => m.content.toLowerCase().includes(query));
+                    snippet = matchMsg ? matchMsg.content : conv.messages[conv.messages.length - 1].content;
+                }
+                
+                // Format date (simplified)
+                const date = new Date(conv.updatedAt || conv.id);
+                const dateStr = `${date.getMonth()+1}月${date.getDate()}日`;
+                
+                item.innerHTML = `
+                    <div class="search-result-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <div class="search-result-content">
+                        <div class="search-result-title-row">
+                            <div class="search-result-title">${escapeHtml(conv.title || '新对话')}</div>
+                            <div class="search-result-date">${dateStr}</div>
+                        </div>
+                        <div class="search-result-snippet">${escapeHtml(snippet)}</div>
+                    </div>
+                `;
+                
+                item.addEventListener('click', () => {
+                    switchConversation(conv.id);
+                    DOM.searchOverlay.classList.remove('active');
+                    DOM.mainView.classList.remove('drawer-open');
+                });
+                
+                DOM.searchResults.appendChild(item);
+            });
+        }
     }
 
     function init() {
