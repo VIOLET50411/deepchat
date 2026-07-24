@@ -327,35 +327,27 @@
     }
 
     function bindEvents() {
-        // iOS PWA keyboard float handling — floats input wrapper directly above keyboard
+        // iOS PWA height & keyboard sync
         if (window.visualViewport) {
             const vv = window.visualViewport;
-            const inputWrapper = document.querySelector('.input-area-wrapper');
-            
-            const syncKeyboard = () => {
-                const offset = window.innerHeight - vv.height - (vv.offsetTop || 0);
-                const keyboardOpen = offset > 100;
+            const syncViewport = () => {
+                // Set CSS variable to exact visual height (shrinks with keyboard)
+                document.documentElement.style.setProperty('--app-height', vv.height + 'px');
                 
+                // Keyboard state detection
+                const keyboardOpen = (window.innerHeight - vv.height) > 100;
                 document.body.classList.toggle('keyboard-open', keyboardOpen);
                 
-                if (keyboardOpen && inputWrapper) {
-                    // Float input bar up above iOS native keyboard
-                    inputWrapper.style.transform = `translateY(-${offset}px)`;
-                    if (DOM.messagesContainer) {
-                        requestAnimationFrame(() => {
-                            DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
-                        });
-                    }
-                } else if (inputWrapper) {
-                    inputWrapper.style.transform = '';
+                if (keyboardOpen && DOM.messagesContainer) {
+                    requestAnimationFrame(() => {
+                        DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+                    });
                 }
-                
                 window.scrollTo(0, 0);
             };
-            
-            vv.addEventListener('resize', syncKeyboard);
-            vv.addEventListener('scroll', syncKeyboard);
-            syncKeyboard();
+            vv.addEventListener('resize', syncViewport);
+            vv.addEventListener('scroll', syncViewport);
+            syncViewport();
         }
 
         // Prevent iOS rubber-band scrolling on non-scrollable elements
