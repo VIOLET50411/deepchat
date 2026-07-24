@@ -2,7 +2,7 @@
     'use strict';
 
     const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme' };
-    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 4096, systemPrompt: '', userName: 'Locin', userAvatar: null };
+    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 4096, systemPrompt: '', userName: 'Locin', userAvatar: null, currentBalance: null, baseBalance: null };
 
     let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null };
 
@@ -160,7 +160,7 @@
         state.activeConversationId = id;
         saveData();
         renderSidebar(); // Update active class
-        renderActiveConversation();
+        renderActiveConversation('switch');
         toggleDrawer(false);
     };
 
@@ -175,9 +175,49 @@
         }
     };
 
-    function renderActiveConversation() {
+    function createMessageHTML(m) {
+        return `
+            <div class="message ${m.role}">
+                <div class="message-bubble">${renderMarkdown(m.content)}</div>
+                ${m.role === 'assistant' ? `
+                <div class="message-actions">
+                    <button><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                    <button><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
+                    <button><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>
+                    <button><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>
+                    <button><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 2v6h6"/></svg></button>
+                </div>` : ''}
+            </div>
+        `;
+    }
+
+    function renderActiveConversation(mode = 'switch') {
         const conv = state.conversations.find(c => c.id === state.activeConversationId);
         
+        if (mode === 'stream') {
+            const lastMsg = conv.messages[conv.messages.length - 1];
+            const lastEl = DOM.messagesList.lastElementChild;
+            if (lastEl && lastEl.classList.contains(lastMsg.role)) {
+                const bubble = lastEl.querySelector('.message-bubble');
+                if (bubble) bubble.innerHTML = renderMarkdown(lastMsg.content);
+                const container = DOM.messagesContainer;
+                const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200;
+                if (isNearBottom) container.scrollTop = container.scrollHeight;
+            }
+            return;
+        }
+
+        if (mode === 'append') {
+            if (!conv || conv.messages.length === 0) return;
+            DOM.welcomeScreen.classList.add('hidden');
+            const now = new Date();
+            const timeStr = \`今天 \${now.getHours()}:\${String(now.getMinutes()).padStart(2,'0')}\`;
+            const dateHTML = \`<div class="message-date">\${timeStr}</div>\`;
+            DOM.messagesList.innerHTML = dateHTML + conv.messages.map(m => createMessageHTML(m)).join('');
+            DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+            return;
+        }
+
         DOM.messagesContainer.classList.add('page-transition');
         
         setTimeout(() => {
@@ -186,16 +226,10 @@
                 DOM.messagesList.innerHTML = '';
             } else {
                 DOM.welcomeScreen.classList.add('hidden');
-                DOM.messagesList.innerHTML = conv.messages.map(m => `
-                    <div class="message ${m.role}">
-                        <div class="message-bubble">${renderMarkdown(m.content)}</div>
-                        ${m.role === 'assistant' ? `
-                        <div class="message-actions">
-                            <button><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
-                            <button><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
-                        </div>` : ''}
-                    </div>
-                `).join('');
+                const now = new Date();
+                const timeStr = \`今天 \${now.getHours()}:\${String(now.getMinutes()).padStart(2,'0')}\`;
+                const dateHTML = \`<div class="message-date">\${timeStr}</div>\`;
+                DOM.messagesList.innerHTML = dateHTML + conv.messages.map(m => createMessageHTML(m)).join('');
                 DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
             }
             
@@ -226,7 +260,7 @@
         conv.messages.push({ role: 'user', content });
         DOM.messageInput.value = '';
         handleInputState();
-        renderActiveConversation();
+        renderActiveConversation('append');
         renderSidebar();
         saveData();
 
@@ -239,7 +273,7 @@
 
         // Add placeholder AI message
         conv.messages.push({ role: 'assistant', content: '...' });
-        renderActiveConversation();
+        renderActiveConversation('append');
 
         try {
             const payload = {
@@ -280,7 +314,7 @@
                             if (data.choices[0].delta.content) {
                                 fullContent += data.choices[0].delta.content;
                                 conv.messages[conv.messages.length - 1].content = fullContent;
-                                renderActiveConversation();
+                                renderActiveConversation('stream');
                             }
                         } catch (e) {}
                     }
@@ -289,7 +323,7 @@
         } catch (e) {
             if (e.name !== 'AbortError') {
                 conv.messages[conv.messages.length - 1].content = '发送失败，请检查网络或 API Key。';
-                renderActiveConversation();
+                renderActiveConversation('append');
             }
         } finally {
             setGeneratingState(false);
@@ -323,13 +357,30 @@
                     const balance = parseFloat(data.balance_infos[0].total_balance);
                     DOM.balanceText.textContent = balance.toFixed(2);
                     
-                    // Assuming a max balance of 100 for the percentage ring (adjust as needed)
-                    const maxBalance = 50; 
-                    let percentage = (balance / maxBalance) * 100;
+                    let { currentBalance, baseBalance } = state.settings;
+                    
+                    if (currentBalance === null || baseBalance === null) {
+                        currentBalance = balance;
+                        baseBalance = balance > 0 ? balance : 50; 
+                    } else if (balance > currentBalance) {
+                        // Recharged!
+                        baseBalance = balance;
+                        currentBalance = balance;
+                    } else {
+                        currentBalance = balance;
+                    }
+                    
+                    state.settings.currentBalance = currentBalance;
+                    state.settings.baseBalance = baseBalance;
+                    saveData();
+
+                    let percentage = baseBalance > 0 ? (currentBalance / baseBalance) * 100 : 0;
                     if (percentage > 100) percentage = 100;
+                    if (percentage < 0) percentage = 0;
+                    
                     DOM.balanceRingFill.setAttribute('stroke-dasharray', `${percentage}, 100`);
                     
-                    if (percentage < 20) DOM.balanceRingFill.style.stroke = '#ff3b30'; // Red if low
+                    if (percentage < 20) DOM.balanceRingFill.style.stroke = '#ff3b30';
                     else DOM.balanceRingFill.style.stroke = 'var(--blue-action)';
                 }
             }
@@ -379,6 +430,24 @@
         DOM.newChatBtnMain.addEventListener('click', createConversation);
         
         DOM.themeToggle.addEventListener('click', toggleTheme);
+        
+        DOM.messagesContainer.addEventListener('scroll', () => {
+            const container = DOM.messagesContainer;
+            const hasScrollbar = container.scrollHeight > container.clientHeight;
+            const isScrolledUp = (container.scrollHeight - container.scrollTop - container.clientHeight) > 100;
+            if (hasScrollbar && isScrolledUp) {
+                DOM.scrollToBottomBtn.classList.add('visible');
+            } else {
+                DOM.scrollToBottomBtn.classList.remove('visible');
+            }
+        });
+        
+        DOM.scrollToBottomBtn.addEventListener('click', () => {
+            DOM.messagesContainer.scrollTo({
+                top: DOM.messagesContainer.scrollHeight,
+                behavior: 'smooth'
+            });
+        });
         
         DOM.messageInput.addEventListener('input', handleInputState);
         DOM.messageInput.addEventListener('keydown', (e) => {
