@@ -327,7 +327,20 @@
     }
 
     function bindEvents() {
-        // iOS PWA keyboard detection — toggles .keyboard-open class
+        // iOS PWA height fix — set --app-height to actual window height
+        // This is the ONLY reliable method for iOS PWA standalone mode
+        // where 100vh, 100dvh, -webkit-fill-available, inset:0 ALL fail
+        function setAppHeight() {
+            const h = window.innerHeight;
+            document.documentElement.style.setProperty('--app-height', h + 'px');
+        }
+        setAppHeight();
+        window.addEventListener('resize', setAppHeight);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(setAppHeight, 100);
+        });
+
+        // iOS PWA keyboard detection
         if (window.visualViewport) {
             const vv = window.visualViewport;
             const syncKeyboard = () => {
