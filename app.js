@@ -315,18 +315,18 @@
                 const keyboardHeight = windowHeight - vvHeight;
                 
                 if (keyboardHeight > 100) {
-                    // Keyboard is open
-                    inputWrapper.style.bottom = keyboardHeight + 'px';
-                    if (DOM.settingsPanel) DOM.settingsPanel.style.bottom = keyboardHeight + 'px';
+                    // Keyboard is open: expand padding so content is pushed above keyboard
+                    inputWrapper.style.paddingBottom = keyboardHeight + 'px';
+                    if (DOM.settingsPanel) DOM.settingsPanel.style.paddingBottom = (keyboardHeight + 24) + 'px';
                     inputWrapper.classList.add('keyboard-active');
                     // Scroll messages to bottom
                     requestAnimationFrame(() => {
                         DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
                     });
                 } else {
-                    // Keyboard is closed
-                    inputWrapper.style.bottom = '0';
-                    if (DOM.settingsPanel) DOM.settingsPanel.style.bottom = '0';
+                    // Keyboard is closed: reset to CSS defaults
+                    inputWrapper.style.paddingBottom = '';
+                    if (DOM.settingsPanel) DOM.settingsPanel.style.paddingBottom = '';
                     inputWrapper.classList.remove('keyboard-active');
                 }
             };
