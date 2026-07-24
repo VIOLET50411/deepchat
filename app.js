@@ -266,8 +266,16 @@
     }
 
     function renderMarkdown(text) {
-        if (typeof marked !== 'undefined') return marked.parse(text);
-        return escapeHtml(text).replace(/\n/g, '<br>');
+        let html = text;
+        if (typeof marked !== 'undefined') {
+            html = marked.parse(text);
+        } else {
+            html = escapeHtml(text).replace(/\n/g, '<br>');
+        }
+        if (typeof DOMPurify !== 'undefined') {
+            html = DOMPurify.sanitize(html);
+        }
+        return html;
     }
     function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
 
