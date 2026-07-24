@@ -2,7 +2,7 @@
     'use strict';
 
     const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme' };
-    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-chat', temperature: 1.0, maxTokens: 4096, systemPrompt: '' };
+    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 4096, systemPrompt: '' };
 
     let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null };
 
@@ -210,14 +210,20 @@
         renderActiveConversation();
 
         try {
-            const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+            const payload = {
+                model: state.settings.model,
+                messages: conv.messages.slice(0, -1).map(m => ({role: m.role, content: m.content})),
+                stream: true
+            };
+            if (state.settings.model === 'deepseek-v4-pro') {
+                payload.thinking = { type: "enabled" };
+                payload.reasoning_effort = "high";
+            }
+
+            const response = await fetch('https://api.deepseek.com/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.settings.apiKey}` },
-                body: JSON.stringify({
-                    model: state.settings.model,
-                    messages: conv.messages.slice(0, -1).map(m => ({role: m.role, content: m.content})),
-                    stream: true
-                }),
+                body: JSON.stringify(payload),
                 signal: state.abortController.signal
             });
 
