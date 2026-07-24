@@ -527,6 +527,103 @@
             }
         }, { passive: false });
 
+        // ========== Long Press & Context Menu ==========
+        let activeMessageId = null;
+
+        DOM.messagesList.addEventListener('contextmenu', (e) => {
+            const bubble = e.target.closest('.message-bubble');
+            if (!bubble) return;
+            const msgEl = bubble.closest('.message');
+            if (!msgEl) return;
+            // only allow user messages to be edited for now
+            if (msgEl.classList.contains('assistant')) return;
+            
+            e.preventDefault(); // Prevent native menu
+            activeMessageId = msgEl.getAttribute('data-id');
+            showContextMenu(e, msgEl);
+        });
+
+        const ctxOverlay = document.getElementById('contextMenuOverlay');
+        const ctxMenu = document.getElementById('contextMenu');
+        
+        function showContextMenu(e, msgEl) {
+            if ('vibrate' in navigator) navigator.vibrate(50);
+            ctxOverlay.classList.add('active');
+            
+            // Disable text selection on bubble while menu is open
+            msgEl.style.userSelect = 'none';
+            msgEl.style.webkitUserSelect = 'none';
+            
+            const rect = msgEl.getBoundingClientRect();
+            let top = rect.top + 10;
+            let left = rect.left + 20;
+            
+            // Adjust if near right edge
+            if (msgEl.classList.contains('user')) {
+                left = rect.right - 220;
+            }
+            
+            if (left < 10) left = 10;
+            if (top + 160 > window.innerHeight) top = window.innerHeight - 180;
+            
+            ctxMenu.style.top = top + 'px';
+            ctxMenu.style.left = left + 'px';
+            setTimeout(() => ctxMenu.classList.add('active'), 10);
+        }
+
+        function hideContextMenu() {
+            ctxMenu.classList.remove('active');
+            setTimeout(() => ctxOverlay.classList.remove('active'), 200);
+            
+            const conv = state.conversations.find(c => c.id === state.activeConversationId);
+            const msg = conv?.messages.find(m => m.id === activeMessageId);
+            if (msg) {
+                const el = document.querySelector(`.message[data-id="${activeMessageId}"]`);
+                if (el) {
+                    el.style.userSelect = '';
+                    el.style.webkitUserSelect = '';
+                }
+            }
+            activeMessageId = null;
+        }
+
+        ctxMenu.addEventListener('click', (e) => {
+            const item = e.target.closest('.context-menu-item');
+            if (!item || !activeMessageId) return;
+            const action = item.getAttribute('data-action');
+            
+            const conv = state.conversations.find(c => c.id === state.activeConversationId);
+            const msg = conv?.messages.find(m => m.id === activeMessageId);
+            const el = document.querySelector(`.message[data-id="${activeMessageId}"]`);
+            
+            if (action === 'copy' && msg) {
+                navigator.clipboard.writeText(msg.content);
+                showToast('已复制');
+                hideContextMenu();
+            } else if (action === 'edit' && msg) {
+                state.editingMessageId = activeMessageId;
+                renderActiveConversation('switch');
+                hideContextMenu();
+            } else if (action === 'select' && msg && el) {
+                // allow native selection
+                hideContextMenu();
+                el.style.userSelect = 'text';
+                el.style.webkitUserSelect = 'text';
+                
+                // Programmatically select text
+                const bubble = el.querySelector('.message-bubble');
+                if (bubble) {
+                    const range = document.createRange();
+                    range.selectNodeContents(bubble);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            } else {
+                hideContextMenu();
+            }
+        });
+
         DOM.menuBtn.addEventListener('click', () => toggleDrawer(true));
         DOM.mainOverlay.addEventListener('click', () => toggleDrawer(false));
         DOM.closeSidebarBtn.addEventListener('click', () => toggleDrawer(false));
