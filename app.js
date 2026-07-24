@@ -40,7 +40,6 @@
         
         searchBtnSidebar: $('#searchBtnSidebar'),
         searchOverlay: $('#searchOverlay'),
-        closeSearchBtn: $('#closeSearchBtn'),
         searchInput: $('#searchInput'),
         searchResults: $('#searchResults'),
         settingsProfile: $('#settingsProfile'),
@@ -490,9 +489,11 @@
             renderSearchResults('');
         });
         
-        DOM.closeSearchBtn.addEventListener('click', () => {
-            DOM.searchOverlay.classList.remove('active');
-            DOM.searchInput.value = '';
+        DOM.searchOverlay.addEventListener('click', (e) => {
+            if (e.target === DOM.searchOverlay || e.target === DOM.searchResults) {
+                DOM.searchOverlay.classList.remove('active');
+                DOM.searchInput.value = '';
+            }
         });
         
         DOM.searchInput.addEventListener('input', (e) => {
