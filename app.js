@@ -4,7 +4,7 @@
     const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme' };
     const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 4096, systemPrompt: '', userName: 'Locin', userAvatar: null, currentBalance: null, baseBalance: null };
 
-    let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null, streamBuffer: '', renderedContent: '', streamRAFId: null, isThinking: false };
+    let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null, streamBuffer: '', renderedContent: '', streamRAFId: null, isThinking: false, editingMessageId: null };
 
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => document.querySelectorAll(sel);
@@ -176,10 +176,53 @@
         }
     };
 
+    window.cancelEdit = function() {
+        state.editingMessageId = null;
+        renderActiveConversation('switch');
+    };
+
+    window.saveEdit = async function(msgId) {
+        const textarea = document.getElementById('edit_textarea_' + msgId);
+        if (!textarea) return;
+        const newContent = textarea.value.trim();
+        if (!newContent) return;
+        
+        const conv = state.conversations.find(c => c.id === state.activeConversationId);
+        if (!conv) return;
+        
+        const msgIndex = conv.messages.findIndex(m => m.id === msgId);
+        if (msgIndex === -1) return;
+        
+        // Truncate conversation to this point
+        conv.messages = conv.messages.slice(0, msgIndex);
+        conv.messages.push({ id: msgId, role: 'user', content: newContent });
+        
+        state.editingMessageId = null;
+        renderActiveConversation('append');
+        saveData();
+        await callAPI(conv);
+    };
+
     function createMessageHTML(m) {
+        if (!m.id) m.id = 'msg_' + Math.random().toString(36).substr(2, 9);
+        
+        if (state.editingMessageId === m.id) {
+            return `
+                <div class="message user" data-id="${m.id}">
+                    <div class="edit-mode-container">
+                        <textarea class="edit-textarea" id="edit_textarea_${m.id}">${escapeHtml(m.content)}</textarea>
+                        <div class="edit-actions">
+                            <button class="btn-cancel" onclick="window.cancelEdit()">取消</button>
+                            <button class="btn-save" onclick="window.saveEdit('${m.id}')">发送</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         if (m.isThinking) {
             return `
-                <div class="message assistant">
+                <div class="message assistant" data-id="${m.id}">
                     <div class="thinking-graphic-container">
                         <div class="thinking-core"></div>
                         <div class="thinking-particle particle-1"></div>
@@ -190,15 +233,14 @@
             `;
         }
         return `
-            <div class="message ${m.role}">
+            <div class="message ${m.role}" data-id="${m.id}">
                 <div class="message-bubble">${renderMarkdown(m.content)}</div>
                 ${m.role === 'assistant' ? `
                 <div class="message-actions">
-                    <button><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
-                    <button><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
-                    <button><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>
-                    <button><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>
-                    <button><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+                    <button class="action-btn" data-action="copy" data-id="${m.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                    <button class="action-btn" data-action="good" data-id="${m.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>
+                    <button class="action-btn" data-action="bad" data-id="${m.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>
+                    <button class="action-btn" data-action="regenerate" data-id="${m.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
                 </div>` : ''}
             </div>
         `;
