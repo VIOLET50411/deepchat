@@ -331,12 +331,17 @@
         if (window.visualViewport) {
             const vv = window.visualViewport;
             const syncViewport = () => {
-                // Set CSS variable to exact visual height (shrinks with keyboard)
-                document.documentElement.style.setProperty('--app-height', vv.height + 'px');
-                
-                // Keyboard state detection
+                // In iOS PWA, window.innerHeight is the full physical screen height.
+                // visualViewport.height shrinks when the keyboard opens.
                 const keyboardOpen = (window.innerHeight - vv.height) > 100;
                 document.body.classList.toggle('keyboard-open', keyboardOpen);
+                
+                // Calculate how much the keyboard has pushed up
+                let offset = window.innerHeight - vv.height;
+                // Force 0 when closed to ensure no safe-area gap issues
+                if (!keyboardOpen) offset = 0; 
+                
+                document.documentElement.style.setProperty('--keyboard-offset', offset + 'px');
                 
                 if (keyboardOpen && DOM.messagesContainer) {
                     requestAnimationFrame(() => {
