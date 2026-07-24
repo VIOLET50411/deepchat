@@ -61,12 +61,21 @@
     function initTheme() {
         const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         DOM.html.setAttribute('data-theme', savedTheme);
+        updateThemeMeta(savedTheme);
     }
 
     function toggleTheme() {
         const newTheme = DOM.html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
         DOM.html.setAttribute('data-theme', newTheme);
         localStorage.setItem(STORAGE_KEYS.THEME, newTheme);
+        updateThemeMeta(newTheme);
+    }
+
+    function updateThemeMeta(theme) {
+        const meta = document.getElementById('themeColorMeta');
+        if (meta) {
+            meta.setAttribute('content', theme === 'dark' ? '#000000' : '#ffffff');
+        }
     }
 
     function toggleDrawer(open) {

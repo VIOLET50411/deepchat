@@ -61,16 +61,15 @@ html[data-theme="dark"] .icon-moon { display: block !important; }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html {
     font-size: 16px;
-    height: 100%;
-    height: -webkit-fill-available;
+    height: 100%; height: 100dvh;
     width: 100%; margin: 0; padding: 0; overflow: hidden;
+    background: #000000; /* Prevent white bleed at bottom in iOS PWA */
 }
 body {
     font-family: var(--font-sans);
     background: var(--bg-main);
     color: var(--text-primary);
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
+    min-height: 100%; min-height: 100dvh;
     overflow: hidden;
     margin: 0; padding: 0;
     -webkit-font-smoothing: antialiased;
@@ -80,6 +79,7 @@ body {
 .app-container {
     position: fixed;
     inset: 0;
+    height: 100dvh;
     overflow: hidden;
     background: var(--bg-sidebar);
 }
