@@ -59,28 +59,21 @@ html[data-theme="dark"] .icon-sun { display: none !important; }
 html[data-theme="dark"] .icon-moon { display: block !important; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html {
-    font-size: 16px;
-    /* svh = Small Viewport Height — excludes browser chrome. The only reliable
-       unit that fills the screen exactly in both Safari and PWA standalone mode */
-    height: 100svh;
-    overflow: hidden; width: 100%; margin: 0; padding: 0;
-}
-body {
+html, body {
     font-family: var(--font-sans);
     background: var(--bg-main);
     color: var(--text-primary);
-    height: 100svh; overflow: hidden;
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    overflow: hidden;
     margin: 0; padding: 0;
     -webkit-font-smoothing: antialiased;
-    width: 100%;
+    width: 100%; height: 100%;
 }
 
 /* ========== Layout & 3D Drawer ========== */
 .app-container {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 100svh;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
     overflow: hidden;
     background: var(--bg-sidebar);
 }
@@ -361,19 +354,23 @@ html[data-theme="dark"] .conv-item:hover, html[data-theme="dark"] .conv-item.act
 .settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.4s cubic-bezier(0.32, 0.72, 0, 1); }
 .settings-overlay.active { opacity: 1; pointer-events: auto; }
 .settings-panel {
-    position: fixed; bottom: 0; left: 0; width: 100%; 
+    position: fixed; top: 50%; left: 50%; 
+    width: 90%; max-width: 400px;
     background: var(--bg-main);
     backdrop-filter: blur(40px) saturate(200%);
     -webkit-backdrop-filter: blur(40px) saturate(200%);
-    border-radius: 24px 24px 0 0; z-index: 201; transform: translateY(100%); 
-    transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
-    padding: 20px 20px 20px;
+    border-radius: 24px; z-index: 201; 
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0; pointer-events: none;
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.3s;
+    padding: 24px;
     /* Allow panel to scroll its content so keyboard never blocks input */
-    max-height: 85svh;
+    max-height: 80vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
 }
-.settings-panel.active { transform: translateY(0); }
+.settings-panel.active { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
 .settings-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 20px; font-weight: 700; }
 .settings-header .btn-icon { width: 36px; height: 36px; border: none; background: var(--bg-input); color: var(--text-primary); display: flex; align-items: center; justify-content: center; border-radius: 18px; cursor: pointer; }
 .setting-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
