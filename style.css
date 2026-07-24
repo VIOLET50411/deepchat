@@ -59,20 +59,21 @@ html[data-theme="dark"] .icon-sun { display: none !important; }
 html[data-theme="dark"] .icon-moon { display: block !important; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { font-size: 16px; height: 100%; overflow: hidden; position: fixed; width: 100%; }
+html { font-size: 16px; height: 100dvh; overflow: hidden; width: 100%; }
 body {
     font-family: var(--font-sans);
     background: var(--bg-main); /* Match main view — hides any gap */
     color: var(--text-primary);
-    height: 100%; overflow: hidden;
+    height: 100dvh; overflow: hidden;
     -webkit-font-smoothing: antialiased;
-    position: fixed; width: 100%;
+    width: 100%;
 }
 
 /* ========== Layout & 3D Drawer ========== */
 .app-container {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
+    height: 100dvh;
     overflow: hidden;
     background: var(--bg-sidebar);
 }
