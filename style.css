@@ -221,6 +221,9 @@ html[data-theme="dark"] .welcome-title {
 }
 .message.user .message-bubble {
     background: #f4f4f4; border-radius: 22px; color: #000;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    user-select: none;
 }
 html[data-theme="dark"] .message.user .message-bubble {
     background: #2f2f2f; color: #fff;

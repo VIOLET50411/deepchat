@@ -530,7 +530,11 @@
         // ========== Long Press & Context Menu ==========
         let activeMessageId = null;
 
-        DOM.messagesList.addEventListener('contextmenu', (e) => {
+        let pressTimer = null;
+        let isLongPress = false;
+
+        function handlePressStart(e) {
+            if (e.button === 2) return; // ignore right click
             const bubble = e.target.closest('.message-bubble');
             if (!bubble) return;
             const msgEl = bubble.closest('.message');
@@ -538,9 +542,25 @@
             // only allow user messages to be edited for now
             if (msgEl.classList.contains('assistant')) return;
             
-            e.preventDefault(); // Prevent native menu
-            activeMessageId = msgEl.getAttribute('data-id');
-            showContextMenu(e, msgEl);
+            isLongPress = false;
+            pressTimer = setTimeout(() => {
+                isLongPress = true;
+                activeMessageId = msgEl.getAttribute('data-id');
+                showContextMenu(e, msgEl);
+            }, 500);
+        }
+        function handlePressEnd() { if (pressTimer) clearTimeout(pressTimer); }
+        function handlePressMove() { if (pressTimer) clearTimeout(pressTimer); }
+
+        DOM.messagesList.addEventListener('touchstart', handlePressStart, {passive: true});
+        DOM.messagesList.addEventListener('touchend', handlePressEnd);
+        DOM.messagesList.addEventListener('touchmove', handlePressMove, {passive: true});
+        DOM.messagesList.addEventListener('mousedown', handlePressStart);
+        DOM.messagesList.addEventListener('mouseup', handlePressEnd);
+        DOM.messagesList.addEventListener('mousemove', handlePressMove);
+        DOM.messagesList.addEventListener('contextmenu', (e) => {
+            const msgEl = e.target.closest('.message.user');
+            if (msgEl) e.preventDefault(); // Prevent native context menu on user bubbles
         });
 
         const ctxOverlay = document.getElementById('contextMenuOverlay');
