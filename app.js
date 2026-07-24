@@ -317,6 +317,7 @@
                 if (keyboardHeight > 100) {
                     // Keyboard is open
                     inputWrapper.style.bottom = keyboardHeight + 'px';
+                    if (DOM.settingsPanel) DOM.settingsPanel.style.bottom = keyboardHeight + 'px';
                     inputWrapper.classList.add('keyboard-active');
                     // Scroll messages to bottom
                     requestAnimationFrame(() => {
@@ -325,6 +326,7 @@
                 } else {
                     // Keyboard is closed
                     inputWrapper.style.bottom = '0';
+                    if (DOM.settingsPanel) DOM.settingsPanel.style.bottom = '0';
                     inputWrapper.classList.remove('keyboard-active');
                 }
             };
