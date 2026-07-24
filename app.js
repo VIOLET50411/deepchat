@@ -299,8 +299,10 @@
             const now = new Date();
             const timeStr = `今天 ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
             const dateHTML = `<div class="message-date">${timeStr}</div>`;
+            const oldScroll = DOM.messagesContainer.scrollTop;
             DOM.messagesList.innerHTML = dateHTML + conv.messages.map(m => createMessageHTML(m)).join('');
-            DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+            if (state.editingMessageId) DOM.messagesContainer.scrollTop = oldScroll;
+            else DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
             return;
         }
 
@@ -315,8 +317,15 @@
                 const now = new Date();
                 const timeStr = `今天 ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
                 const dateHTML = `<div class="message-date">${timeStr}</div>`;
+                const oldScroll = DOM.messagesContainer.scrollTop;
                 DOM.messagesList.innerHTML = dateHTML + conv.messages.map(m => createMessageHTML(m)).join('');
-                DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+                if (state.editingMessageId) {
+                    const editEl = document.querySelector('.message.user .edit-mode-container');
+                    if (editEl) editEl.scrollIntoView({ behavior: 'auto', block: 'center' });
+                    else DOM.messagesContainer.scrollTop = oldScroll;
+                } else {
+                    DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+                }
             }
             
             // Force browser reflow to restart transition
@@ -591,17 +600,19 @@
             setTimeout(() => ctxMenu.classList.add('active'), 10);
         }
 
-        function hideContextMenu() {
+        function hideContextMenu(restoreUserSelect = true) {
             ctxMenu.classList.remove('active');
             setTimeout(() => ctxOverlay.classList.remove('active'), 200);
             
-            const conv = state.conversations.find(c => c.id === state.activeConversationId);
-            const msg = conv?.messages.find(m => m.id === activeMessageId);
-            if (msg) {
-                const el = document.querySelector(`.message[data-id="${activeMessageId}"]`);
-                if (el) {
-                    el.style.userSelect = '';
-                    el.style.webkitUserSelect = '';
+            if (restoreUserSelect && activeMessageId) {
+                const conv = state.conversations.find(c => c.id === state.activeConversationId);
+                const msg = conv?.messages.find(m => m.id === activeMessageId);
+                if (msg) {
+                    const el = document.querySelector(`.message[data-id="${activeMessageId}"]`);
+                    if (el) {
+                        el.style.userSelect = '';
+                        el.style.webkitUserSelect = '';
+                    }
                 }
             }
             activeMessageId = null;
@@ -644,19 +655,21 @@
                 hideContextMenu();
             } else if (action === 'select' && msg && el) {
                 // allow native selection
-                hideContextMenu();
                 el.style.userSelect = 'text';
                 el.style.webkitUserSelect = 'text';
+                hideContextMenu(false);
                 
                 // Programmatically select text
-                const bubble = el.querySelector('.message-bubble');
-                if (bubble) {
-                    const range = document.createRange();
-                    range.selectNodeContents(bubble);
-                    const sel = window.getSelection();
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                }
+                setTimeout(() => {
+                    const bubble = el.querySelector('.message-bubble');
+                    if (bubble) {
+                        const range = document.createRange();
+                        range.selectNodeContents(bubble);
+                        const sel = window.getSelection();
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                    }
+                }, 50);
             } else {
                 hideContextMenu();
             }
