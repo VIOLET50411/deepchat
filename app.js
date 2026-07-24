@@ -2,7 +2,7 @@
     'use strict';
 
     const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme' };
-    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 4096, systemPrompt: '' };
+    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 4096, systemPrompt: '', userName: 'Locin' };
 
     let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null };
 
@@ -42,8 +42,21 @@
         searchOverlay: $('#searchOverlay'),
         closeSearchBtn: $('#closeSearchBtn'),
         searchInput: $('#searchInput'),
-        searchResults: $('#searchResults')
+        searchResults: $('#searchResults'),
+        
+        settingsProfile: $('#settingsProfile'),
+        profileAvatarInitials: $('#profileAvatarInitials'),
+        profileName: $('#profileName')
     };
+
+    function updateProfileUI() {
+        const name = state.settings.userName || 'Locin';
+        if (DOM.profileName) DOM.profileName.textContent = name;
+        if (DOM.profileAvatarInitials) {
+            // Get up to 2 characters for initials
+            DOM.profileAvatarInitials.textContent = name.substring(0, 2).toUpperCase();
+        }
+    }
 
     function initTheme() {
         const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
@@ -351,6 +364,7 @@
         DOM.settingsBtn.addEventListener('click', () => {
             DOM.apiKeyInput.value = state.settings.apiKey;
             DOM.modelSelect.value = state.settings.model;
+            updateProfileUI();
             // Update theme label
             const themeText = document.getElementById('themeValueText');
             if (themeText) themeText.textContent = DOM.html.getAttribute('data-theme') === 'dark' ? '深色' : '浅色';
@@ -367,6 +381,19 @@
         };
         DOM.closeSettingsBtn.addEventListener('click', closeSettings);
         DOM.settingsOverlay.addEventListener('click', closeSettings);
+
+        // Edit Profile
+        if (DOM.settingsProfile) {
+            DOM.settingsProfile.addEventListener('click', () => {
+                const currentName = state.settings.userName || 'Locin';
+                const newName = prompt('修改你的名字：', currentName);
+                if (newName && newName.trim()) {
+                    state.settings.userName = newName.trim();
+                    saveData();
+                    updateProfileUI();
+                }
+            });
+        }
 
         // Theme toggle inside settings
         const themeSettingsRow = document.getElementById('themeSettingsRow');
