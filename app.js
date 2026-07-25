@@ -4,6 +4,26 @@
     const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme' };
     const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 8192, systemPrompt: '你是一个有帮助的AI助手。请记住整个对话的上下文，包括用户之前提出的问题、给出的选项和做出的选择。在回答时始终参考之前的对话内容。', userName: 'Locin', userAvatar: null, currentBalance: null, baseBalance: null };
 
+    const firebaseConfig = {
+        apiKey: "AIzaSyCAKFq9KcvzitLlEr14tRSCUVDAZ1aaA_s",
+        authDomain: "deepchat-sync.firebaseapp.com",
+        projectId: "deepchat-sync",
+        storageBucket: "deepchat-sync.firebasestorage.app",
+        messagingSenderId: "534989412032",
+        appId: "1:534989412032:web:bc53f75909b6ef29887f25"
+    };
+
+    let auth = null;
+    let db = null;
+    if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+    }
+    
+    let currentUser = null;
+    let syncTimeout = null;
+
     let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null, streamBuffer: '', renderedContent: '', streamRAFId: null, isThinking: false, editingMessageId: null, userScrolledUp: false };
 
     const $ = (sel) => document.querySelector(sel);
@@ -11,12 +31,27 @@
 
     const DOM = {
         html: document.documentElement,
-        mainView: $('#mainView'),
+        mainView: $('.main-view'),
         mainOverlay: $('#mainOverlay'),
-        menuBtn: $('#menuBtn'),
-        closeSidebarBtn: $('#closeSidebarBtn'),
-        newChatBtnMain: $('#newChatBtnMain'),
+        menuBtn: $('#btnMenu'),
+        newChatBtnMain: $('#btnNewConv'),
         themeToggle: $('#themeToggle'),
+        
+        // Auth / Sync UI
+        authOverlay: $('#authOverlay'),
+        authModal: $('#authModal'),
+        btnCloseAuth: $('#btnCloseAuth'),
+        btnLoginMenu: $('#btnLogin'),
+        authEmail: $('#authEmail'),
+        authPassword: $('#authPassword'),
+        btnDoLogin: $('#btnDoLogin'),
+        btnDoRegister: $('#btnDoRegister'),
+        btnDoLogout: $('#btnDoLogout'),
+        authErrorMsg: $('#authErrorMsg'),
+        authBodyUnlogged: $('#authBodyUnlogged'),
+        authBodyLogged: $('#authBodyLogged'),
+        userEmailDisplay: $('#userEmailDisplay'),
+        syncStatus: $('#syncStatus'),
         
         conversationList: $('#conversationList'),
         welcomeScreen: $('#welcomeScreen'),
@@ -130,10 +165,62 @@
         } catch (e) {}
     }
 
+    function syncFromCloud() {
+        if (!currentUser || !db) return;
+        DOM.syncStatus.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-8.36l5.67-5.67"/></svg><span>同步中...</span>';
+        DOM.syncStatus.className = 'sync-status syncing';
+        
+        db.collection('users').doc(currentUser.uid).get().then(doc => {
+            if (doc.exists) {
+                const data = doc.data();
+                if (data.conversations && data.conversations.length > 0) {
+                    state.conversations = data.conversations;
+                    state.activeConversationId = data.activeConversationId;
+                    if (data.settings) state.settings = { ...DEFAULT_SETTINGS, ...data.settings };
+                    renderSidebar();
+                    renderActiveConversation();
+                    applyTheme();
+                }
+                // Save loaded cloud data to local storage, which also debounces a write back (harmless)
+                saveData();
+            } else {
+                // Cloud is empty, push local data up
+                saveData();
+            }
+            DOM.syncStatus.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>已同步</span>';
+            DOM.syncStatus.className = 'sync-status synced';
+        }).catch(err => {
+            console.error("Fetch error:", err);
+            DOM.syncStatus.innerHTML = '<svg class="icon-offline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 15.6l-5.6-5.6"/><path d="M15.4 15.4l5.6-5.6"/><path d="M10.6 10.6l-5.6 5.6"/><path d="M15.4 10.6l5.6 5.6"/><path d="M3 3l18 18"/></svg><span>云端断开</span>';
+            DOM.syncStatus.className = 'sync-status';
+        });
+    }
+
     function saveData() {
         localStorage.setItem(STORAGE_KEYS.CONVERSATIONS, JSON.stringify(state.conversations));
         localStorage.setItem(STORAGE_KEYS.ACTIVE_CONV, state.activeConversationId || '');
         localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
+        
+        if (currentUser && db) {
+            DOM.syncStatus.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-8.36l5.67-5.67"/></svg><span>同步中...</span>';
+            DOM.syncStatus.className = 'sync-status syncing';
+            clearTimeout(syncTimeout);
+            syncTimeout = setTimeout(() => {
+                db.collection('users').doc(currentUser.uid).set({
+                    conversations: state.conversations,
+                    activeConversationId: state.activeConversationId,
+                    settings: state.settings,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    DOM.syncStatus.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>已同步</span>';
+                    DOM.syncStatus.className = 'sync-status synced';
+                }).catch(err => {
+                    console.error("Sync error:", err);
+                    DOM.syncStatus.innerHTML = '<svg class="icon-offline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 15.6l-5.6-5.6"/><path d="M15.4 15.4l5.6-5.6"/><path d="M10.6 10.6l-5.6 5.6"/><path d="M15.4 10.6l5.6 5.6"/><path d="M3 3l18 18"/></svg><span>同步失败</span>';
+                    DOM.syncStatus.className = 'sync-status';
+                });
+            }, 3000); // Debounce 3s to save quota
+        }
     }
 
     function createConversation() {
@@ -1187,6 +1274,54 @@
                 DOM.searchResults.appendChild(item);
             });
         }
+
+        // Auth / Sync UI
+        DOM.btnLoginMenu.addEventListener('click', () => {
+            DOM.authOverlay.classList.add('active');
+            DOM.authModal.classList.add('active');
+            DOM.authErrorMsg.style.display = 'none';
+            toggleDrawer(false);
+        });
+        const closeAuth = () => {
+            DOM.authOverlay.classList.remove('active');
+            DOM.authModal.classList.remove('active');
+        };
+        DOM.btnCloseAuth.addEventListener('click', closeAuth);
+        DOM.authOverlay.addEventListener('click', closeAuth);
+
+        DOM.btnDoLogin.addEventListener('click', () => {
+            if(!auth) return;
+            const email = DOM.authEmail.value.trim();
+            const pwd = DOM.authPassword.value.trim();
+            auth.signInWithEmailAndPassword(email, pwd).then(() => {
+                closeAuth();
+                showToast('登录成功，已开启同步');
+            }).catch(e => {
+                DOM.authErrorMsg.style.display = 'block';
+                DOM.authErrorMsg.textContent = '登录失败: ' + e.message;
+            });
+        });
+
+        DOM.btnDoRegister.addEventListener('click', () => {
+            if(!auth) return;
+            const email = DOM.authEmail.value.trim();
+            const pwd = DOM.authPassword.value.trim();
+            auth.createUserWithEmailAndPassword(email, pwd).then(() => {
+                closeAuth();
+                showToast('注册成功，已开启同步');
+            }).catch(e => {
+                DOM.authErrorMsg.style.display = 'block';
+                DOM.authErrorMsg.textContent = '注册失败: ' + e.message;
+            });
+        });
+
+        DOM.btnDoLogout.addEventListener('click', () => {
+            if(!auth) return;
+            auth.signOut().then(() => {
+                closeAuth();
+                showToast('已登出');
+            });
+        });
     }
 
     function init() {
@@ -1199,6 +1334,28 @@
         
         bindEvents();
         fetchBalance();
+        
+        if (auth) {
+            auth.onAuthStateChanged(user => {
+                currentUser = user;
+                if (user) {
+                    DOM.authBodyUnlogged.style.display = 'none';
+                    DOM.authBodyLogged.style.display = 'block';
+                    DOM.userEmailDisplay.textContent = user.email;
+                    DOM.btnLoginMenu.textContent = '账号设置';
+                    DOM.syncStatus.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-8.36l5.67-5.67"/></svg><span>已连接</span>';
+                    DOM.syncStatus.className = 'sync-status synced';
+                    syncFromCloud();
+                } else {
+                    DOM.authBodyUnlogged.style.display = 'block';
+                    DOM.authBodyLogged.style.display = 'none';
+                    DOM.userEmailDisplay.textContent = '未登录 (本地模式)';
+                    DOM.btnLoginMenu.textContent = '登录 / 同步';
+                    DOM.syncStatus.innerHTML = '<svg class="icon-offline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 15.6l-5.6-5.6"/><path d="M15.4 15.4l5.6-5.6"/><path d="M10.6 10.6l-5.6 5.6"/><path d="M15.4 10.6l5.6 5.6"/><path d="M3 3l18 18"/></svg><span>本地模式</span>';
+                    DOM.syncStatus.className = 'sync-status';
+                }
+            });
+        }
     }
 
     document.addEventListener('DOMContentLoaded', init);
