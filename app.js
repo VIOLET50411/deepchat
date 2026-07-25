@@ -620,9 +620,15 @@
     }
 
     function renderMarkdown(text) {
+        // Protect LaTeX blocks from marked.js parsing
+        const mathBlocks = [];
+        text = text.replace(/(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g, (match) => {
+            mathBlocks.push(match);
+            return `%%%MATH_BLOCK_${mathBlocks.length - 1}%%%`;
+        });
+
         let html = text;
         if (typeof marked !== 'undefined') {
-            // Configure marked for better rendering
             marked.setOptions({
                 breaks: true,
                 gfm: true,
@@ -633,6 +639,10 @@
         } else {
             html = escapeHtml(text).replace(/\n/g, '<br>');
         }
+
+        // Restore LaTeX blocks
+        html = html.replace(/%%%MATH_BLOCK_(\d+)%%%/g, (match, i) => mathBlocks[i]);
+
         if (typeof DOMPurify !== 'undefined') {
             html = DOMPurify.sanitize(html, {
                 ADD_TAGS: ['math', 'annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'mover', 'munder', 'munderover', 'msqrt', 'mtable', 'mtr', 'mtd', 'mtext', 'mspace', 'span'],
