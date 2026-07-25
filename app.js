@@ -48,7 +48,8 @@
         profileAvatarBg: $('#profileAvatarBg'),
         profileAvatarInitials: $('#profileAvatarInitials'),
         avatarUploadInput: $('#avatarUploadInput'),
-        profileName: $('#profileName')
+        profileName: $('#profileName'),
+        systemPromptInput: $('#systemPromptInput')
     };
 
     function updateProfileUI() {
@@ -104,7 +105,7 @@
         
         // Auto-resize
         DOM.messageInput.style.height = 'auto';
-        DOM.messageInput.style.height = Math.min(DOM.messageInput.scrollHeight, 120) + 'px';
+        DOM.messageInput.style.height = Math.min(DOM.messageInput.scrollHeight, 200) + 'px';
     }
 
     function setGeneratingState(isGen) {
@@ -147,13 +148,71 @@
 
     function renderSidebar() {
         DOM.conversationList.innerHTML = state.conversations.map(c => `
-            <div class="conv-item ${c.id === state.activeConversationId ? 'active' : ''}" onclick="window.__switchConv('${c.id}')">
-                <span class="conv-title">${escapeHtml(c.title)}</span>
-                <button class="btn-rename" onclick="event.stopPropagation(); window.__renameConv('${c.id}')">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                </button>
+            <div class="conv-item-wrapper">
+                <div class="conv-item-delete" data-conv-id="${c.id}">删除</div>
+                <div class="conv-item ${c.id === state.activeConversationId ? 'active' : ''}" data-conv-id="${c.id}">
+                    <span class="conv-title">${escapeHtml(c.title)}</span>
+                    <button class="btn-rename" onclick="event.stopPropagation(); window.__renameConv('${c.id}')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    </button>
+                </div>
             </div>
         `).join('');
+        
+        // Bind click events for switching conversations
+        DOM.conversationList.querySelectorAll('.conv-item').forEach(el => {
+            el.addEventListener('click', () => window.__switchConv(el.dataset.convId));
+        });
+        
+        // Bind swipe-to-delete
+        bindSwipeDelete();
+    }
+
+    function bindSwipeDelete() {
+        DOM.conversationList.querySelectorAll('.conv-item-wrapper').forEach(wrapper => {
+            const item = wrapper.querySelector('.conv-item');
+            const deleteBtn = wrapper.querySelector('.conv-item-delete');
+            let startX = 0, currentX = 0, swiping = false;
+            
+            item.addEventListener('touchstart', (e) => {
+                startX = e.touches[0].clientX;
+                currentX = startX;
+                swiping = true;
+                item.style.transition = 'none';
+            }, {passive: true});
+            
+            item.addEventListener('touchmove', (e) => {
+                if (!swiping) return;
+                currentX = e.touches[0].clientX;
+                let dx = currentX - startX;
+                if (dx > 0) dx = 0; // Only allow left swipe
+                if (dx < -80) dx = -80;
+                item.style.transform = `translateX(${dx}px)`;
+            }, {passive: true});
+            
+            item.addEventListener('touchend', () => {
+                swiping = false;
+                item.style.transition = 'transform 0.2s ease';
+                const dx = currentX - startX;
+                if (dx < -40) {
+                    item.style.transform = 'translateX(-80px)';
+                } else {
+                    item.style.transform = 'translateX(0)';
+                }
+            });
+            
+            deleteBtn.addEventListener('click', () => {
+                const convId = deleteBtn.dataset.convId;
+                state.conversations = state.conversations.filter(c => c.id !== convId);
+                if (state.activeConversationId === convId) {
+                    state.activeConversationId = state.conversations.length > 0 ? state.conversations[0].id : null;
+                    if (!state.activeConversationId) createConversation();
+                    else renderActiveConversation('switch');
+                }
+                saveData();
+                renderSidebar();
+            });
+        });
     }
 
     window.__switchConv = (id) => {
@@ -241,6 +300,7 @@
                     <button class="action-btn" data-action="good" data-id="${m.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>
                     <button class="action-btn" data-action="bad" data-id="${m.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>
                     <button class="action-btn" data-action="regenerate" data-id="${m.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+                    <span class="word-count">${m.content.length.toLocaleString()} 字</span>
                 </div>` : ''}
             </div>
         `;
@@ -276,6 +336,17 @@
                     const bubble = lastEl.querySelector('.message-bubble');
                     if (bubble) {
                         bubble.innerHTML = renderMarkdown(state.renderedContent);
+                        if (typeof renderMathInElement !== 'undefined') {
+                            renderMathInElement(bubble, {
+                                delimiters: [
+                                    {left: '$$', right: '$$', display: true},
+                                    {left: '$', right: '$', display: false},
+                                    {left: '\\(', right: '\\)', display: false},
+                                    {left: '\\[', right: '\\]', display: true}
+                                ],
+                                throwOnError: false
+                            });
+                        }
                         // Only auto-scroll if user hasn't manually scrolled up
                         if (!state.userScrolledUp) {
                             DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
@@ -314,6 +385,21 @@
             DOM.messagesList.innerHTML = dateHTML + conv.messages.map(m => createMessageHTML(m)).join('');
             if (state.editingMessageId) DOM.messagesContainer.scrollTop = oldScroll;
             else DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+            
+            // Render LaTeX formulas
+            if (typeof renderMathInElement !== 'undefined') {
+                DOM.messagesList.querySelectorAll('.message.assistant .message-bubble').forEach(bubble => {
+                    renderMathInElement(bubble, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false},
+                            {left: '\\(', right: '\\)', display: false},
+                            {left: '\\[', right: '\\]', display: true}
+                        ],
+                        throwOnError: false
+                    });
+                });
+            }
             return;
         }
 
@@ -342,6 +428,21 @@
             // Force browser reflow to restart transition
             void DOM.messagesContainer.offsetWidth;
             DOM.messagesContainer.classList.remove('page-transition');
+            
+            // Render LaTeX formulas
+            if (typeof renderMathInElement !== 'undefined') {
+                DOM.messagesList.querySelectorAll('.message.assistant .message-bubble').forEach(bubble => {
+                    renderMathInElement(bubble, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false},
+                            {left: '\\(', right: '\\)', display: false},
+                            {left: '\\[', right: '\\]', display: true}
+                        ],
+                        throwOnError: false
+                    });
+                });
+            }
         }, 50);
     }
 
@@ -523,12 +624,22 @@
     function renderMarkdown(text) {
         let html = text;
         if (typeof marked !== 'undefined') {
+            // Configure marked for better rendering
+            marked.setOptions({
+                breaks: true,
+                gfm: true,
+                headerIds: false,
+                mangle: false
+            });
             html = marked.parse(text);
         } else {
             html = escapeHtml(text).replace(/\n/g, '<br>');
         }
         if (typeof DOMPurify !== 'undefined') {
-            html = DOMPurify.sanitize(html);
+            html = DOMPurify.sanitize(html, {
+                ADD_TAGS: ['math', 'annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'mover', 'munder', 'munderover', 'msqrt', 'mtable', 'mtr', 'mtd', 'mtext', 'mspace', 'span'],
+                ADD_ATTR: ['class', 'style', 'aria-hidden', 'xmlns']
+            });
         }
         return html;
     }
@@ -862,6 +973,7 @@
         DOM.settingsBtn.addEventListener('click', () => {
             DOM.apiKeyInput.value = state.settings.apiKey;
             DOM.modelSelect.value = state.settings.model;
+            if (DOM.systemPromptInput) DOM.systemPromptInput.value = state.settings.systemPrompt || '';
             updateProfileUI();
             // Update theme label
             const themeText = document.getElementById('themeValueText');
@@ -872,6 +984,7 @@
         const closeSettings = () => {
             state.settings.apiKey = DOM.apiKeyInput.value.trim();
             state.settings.model = DOM.modelSelect.value;
+            if (DOM.systemPromptInput) state.settings.systemPrompt = DOM.systemPromptInput.value;
             saveData();
             fetchBalance();
             DOM.settingsOverlay.classList.remove('active');
@@ -950,6 +1063,33 @@
             state.settings.model = DOM.modelSelect.value;
             saveData();
         });
+
+        // ========== Left Edge Swipe to Open Sidebar ==========
+        let edgeStartX = 0, edgeStartY = 0, edgeSwiping = false;
+        document.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            if (touch.clientX < 25) { // Only trigger from left edge (25px)
+                edgeStartX = touch.clientX;
+                edgeStartY = touch.clientY;
+                edgeSwiping = true;
+            }
+        }, {passive: true});
+
+        document.addEventListener('touchmove', (e) => {
+            if (!edgeSwiping) return;
+            const touch = e.touches[0];
+            const dx = touch.clientX - edgeStartX;
+            const dy = Math.abs(touch.clientY - edgeStartY);
+            // Must be more horizontal than vertical
+            if (dx > 50 && dy < 80) {
+                toggleDrawer(true);
+                edgeSwiping = false;
+            }
+        }, {passive: true});
+
+        document.addEventListener('touchend', () => {
+            edgeSwiping = false;
+        }, {passive: true});
 
         // --- Search Logic ---
         DOM.searchBtnSidebar.addEventListener('click', () => {

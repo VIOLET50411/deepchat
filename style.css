@@ -230,6 +230,17 @@ html[data-theme="dark"] .message.user .message-bubble {
 }
 .message.assistant .message-bubble {
     background: transparent; border-radius: 0; padding: 0; max-width: 100%;
+    line-height: 1.85;
+    letter-spacing: 0.01em;
+}
+.message.assistant .message-bubble p {
+    margin: 0.8em 0;
+}
+.message.assistant .message-bubble p:first-child {
+    margin-top: 0;
+}
+.message.assistant .message-bubble p:last-child {
+    margin-bottom: 0;
 }
 
 @keyframes core-morph {
@@ -303,6 +314,15 @@ html[data-theme="dark"] .thinking-particle { background: #fff; }
 }
 .message-actions button:hover { opacity: 0.6; }
 
+.word-count {
+    font-size: 12px;
+    color: var(--text-secondary);
+    opacity: 0.5;
+    margin-left: auto;
+    padding-right: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
 .message-date {
     text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 8px; font-weight: 500;
 }
@@ -319,12 +339,13 @@ html[data-theme="dark"] .thinking-particle { background: #fff; }
     border: 1px solid var(--glass-border);
     box-shadow: 0 4px 12px rgba(0,0,0,0.12);
     color: var(--text-primary);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; z-index: 40;
+    display: none; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 210;
     opacity: 0; pointer-events: none;
     transition: opacity 0.3s, transform 0.3s;
 }
 .scroll-bottom-btn.visible {
+    display: flex;
     opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0);
 }
 
@@ -364,7 +385,7 @@ html[data-theme="dark"] .input-pill {
 .message-input {
     flex: 1; border: none; background: transparent; color: var(--text-primary);
     font-size: 16px; font-family: var(--font-sans); resize: none; outline: none;
-    padding: 9px 0; margin-bottom: 0; max-height: 120px; line-height: 1.4;
+    padding: 9px 0; margin-bottom: 0; max-height: 160px; line-height: 1.4;
     align-self: center;
 }
 .message-input::placeholder { color: var(--text-placeholder); }
@@ -405,6 +426,30 @@ html[data-theme="dark"] .input-pill {
 .conv-item { 
     display: flex; justify-content: space-between; align-items: center;
     padding: 12px 10px; font-size: 15px; font-weight: 600; border-radius: 12px; cursor: pointer; 
+}
+.conv-item-wrapper {
+    position: relative;
+    overflow: hidden;
+}
+.conv-item-delete {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 80px;
+    background: #ff3b30;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+}
+.conv-item {
+    position: relative;
+    z-index: 1;
+    background: var(--bg-sidebar);
+    transition: transform 0.2s ease;
 }
 .conv-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
 .btn-rename {
@@ -595,6 +640,26 @@ html[data-theme="dark"] .settings-divider { background: #38383a; }
     direction: rtl; cursor: pointer;
 }
 
+.system-prompt-textarea {
+    width: 100%;
+    min-height: 80px;
+    max-height: 160px;
+    resize: vertical;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 14px;
+    font-family: var(--font-sans);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    outline: none;
+    box-sizing: border-box;
+    line-height: 1.5;
+}
+.system-prompt-textarea:focus {
+    border-color: var(--blue-action);
+}
+
 .settings-row-purple .settings-icon,
 .settings-row-purple .settings-label {
     color: #8e44ad;
@@ -764,3 +829,13 @@ html[data-theme="dark"] .search-result-icon { background: rgba(255,255,255,0.08)
 .search-result-title { font-weight: 600; font-size: 15px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search-result-date { font-size: 12px; color: var(--text-secondary); flex-shrink: 0; }
 .search-result-snippet { font-size: 14px; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* KaTeX overrides */
+.message-bubble .katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 0;
+}
+.message-bubble .katex {
+    font-size: 1em;
+}

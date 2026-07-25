@@ -13,7 +13,8 @@
     <link rel="icon" type="image/svg+xml" href="icon.svg">
     <link rel="apple-touch-icon" href="icon.svg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" id="hljs-theme">
-    <link rel="stylesheet" href="style.css?v=15">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    <link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
     <div id="app" class="app-container">
@@ -108,7 +109,7 @@
                 <div class="messages-bottom-spacer"></div>
             </div>
             <!-- Floating Scroll-To-Bottom Button -->
-            <button id="scrollToBottomBtn" class="scroll-bottom-btn hidden" title="返回底部">
+            <button id="scrollToBottomBtn" class="scroll-bottom-btn" title="返回底部">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
             </button>
 
@@ -176,6 +177,15 @@
                                 <option value="deepseek-v4-pro">V4 Pro</option>
                             </select>
                             <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                        <div class="settings-divider"></div>
+                        <!-- System Prompt -->
+                        <div class="settings-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <svg class="settings-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                <div class="settings-label">系统提示词</div>
+                            </div>
+                            <textarea id="systemPromptInput" class="system-prompt-textarea" placeholder="例如：你是一个专业的小说作家..."></textarea>
                         </div>
                         <div class="settings-divider"></div>
                         <!-- Clear Data -->
@@ -281,6 +291,8 @@
     <script src="https://cdn.staticfile.net/marked/12.0.1/marked.min.js"></script>
     <script src="https://cdn.staticfile.net/dompurify/3.0.9/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="app.js?v=15"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+    <script src="app.js?v=16"></script>
 </body>
 </html>
