@@ -2,9 +2,9 @@
     'use strict';
 
     const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme' };
-    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 4096, systemPrompt: '', userName: 'Locin', userAvatar: null, currentBalance: null, baseBalance: null };
+    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 8192, systemPrompt: '你是一个有帮助的AI助手。请记住整个对话的上下文，包括用户之前提出的问题、给出的选项和做出的选择。在回答时始终参考之前的对话内容。', userName: 'Locin', userAvatar: null, currentBalance: null, baseBalance: null };
 
-    let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null, streamBuffer: '', renderedContent: '', streamRAFId: null, isThinking: false, editingMessageId: null };
+    let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null, streamBuffer: '', renderedContent: '', streamRAFId: null, isThinking: false, editingMessageId: null, userScrolledUp: false };
 
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => document.querySelectorAll(sel);
@@ -248,10 +248,19 @@
 
     function startStreamRenderer() {
         if (state.streamRAFId) cancelAnimationFrame(state.streamRAFId);
+        state.userScrolledUp = false;
         
-        let lastTime = performance.now();
-        const renderLoop = (time) => {
-            const dt = time - lastTime;
+        // Listen for user scroll to detect manual scroll-up
+        const onUserScroll = () => {
+            const container = DOM.messagesContainer;
+            const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+            state.userScrolledUp = !isNearBottom;
+        };
+        DOM.messagesContainer.addEventListener('scroll', onUserScroll, { passive: true });
+        // Also detect touch-initiated scrolls
+        DOM.messagesContainer.addEventListener('touchmove', () => { state.userScrolledUp = true; }, { passive: true, once: false });
+        
+        const renderLoop = () => {
             const diff = state.streamBuffer.length - state.renderedContent.length;
             
             if (diff > 0) {
@@ -267,17 +276,18 @@
                     const bubble = lastEl.querySelector('.message-bubble');
                     if (bubble) {
                         bubble.innerHTML = renderMarkdown(state.renderedContent);
-                        const container = DOM.messagesContainer;
-                        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200;
-                        if (isNearBottom) container.scrollTop = container.scrollHeight;
+                        // Only auto-scroll if user hasn't manually scrolled up
+                        if (!state.userScrolledUp) {
+                            DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+                        }
                     }
                 }
             } else if (!state.isGenerating && diff === 0) {
+                DOM.messagesContainer.removeEventListener('scroll', onUserScroll);
                 stopStreamRenderer();
                 return;
             }
             
-            lastTime = time;
             state.streamRAFId = requestAnimationFrame(renderLoop);
         };
         state.streamRAFId = requestAnimationFrame(renderLoop);
@@ -288,6 +298,7 @@
             cancelAnimationFrame(state.streamRAFId);
             state.streamRAFId = null;
         }
+        state.userScrolledUp = false;
     }
 
     function renderActiveConversation(mode = 'switch') {
@@ -362,6 +373,45 @@
         await callAPI(conv);
     }
 
+    function buildMessagesPayload(conv) {
+        const msgs = [];
+        // Always include system prompt for better memory
+        const sysPrompt = state.settings.systemPrompt || DEFAULT_SETTINGS.systemPrompt;
+        if (sysPrompt) {
+            msgs.push({ role: 'system', content: sysPrompt });
+        }
+        
+        // Get conversation messages (exclude the placeholder assistant message)
+        const history = conv.messages.filter(m => !m.isThinking).map(m => ({ role: m.role, content: m.content }));
+        
+        // Smart context window management:
+        // DeepSeek models typically support 64k~128k context.
+        // We estimate tokens roughly as chars/2 for Chinese, chars/4 for English.
+        // Keep as many recent messages as possible within ~60k chars (~30k tokens).
+        const MAX_CHARS = 60000;
+        let totalChars = sysPrompt ? sysPrompt.length : 0;
+        let startIndex = 0;
+        
+        // Calculate total
+        let allChars = 0;
+        for (const m of history) allChars += m.content.length;
+        
+        if (allChars + totalChars > MAX_CHARS) {
+            // Need to trim — always keep the most recent messages
+            let kept = 0;
+            for (let i = history.length - 1; i >= 0; i--) {
+                kept += history[i].content.length;
+                if (kept + totalChars > MAX_CHARS) {
+                    startIndex = i + 1;
+                    break;
+                }
+            }
+        }
+        
+        msgs.push(...history.slice(startIndex));
+        return msgs;
+    }
+
     async function callAPI(conv) {
         setGeneratingState(true);
         state.abortController = new AbortController();
@@ -375,10 +425,13 @@
         renderActiveConversation('append');
 
         try {
+            const messagesPayload = buildMessagesPayload(conv);
+            
             const payload = {
                 model: state.settings.model,
-                messages: conv.messages.slice(0, -1).map(m => ({role: m.role, content: m.content})),
-                stream: true
+                messages: messagesPayload,
+                stream: true,
+                max_tokens: state.settings.maxTokens
             };
             if (state.settings.model === 'deepseek-v4-pro') {
                 payload.thinking = { type: "enabled" };
@@ -392,25 +445,34 @@
                 signal: state.abortController.signal
             });
 
-            if (!response.ok) throw new Error('API Error');
+            if (!response.ok) {
+                const errData = await response.json().catch(() => null);
+                const errMsg = errData?.error?.message || `API 错误 (${response.status})`;
+                throw new Error(errMsg);
+            }
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder('utf-8');
-            let fullContent = '';
+            let sseBuffer = ''; // Buffer for incomplete SSE lines
 
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
                 
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
+                sseBuffer += decoder.decode(value, { stream: true });
+                const lines = sseBuffer.split('\n');
+                
+                // Keep the last element (may be incomplete)
+                sseBuffer = lines.pop() || '';
                 
                 for (const line of lines) {
-                    if (line.trim() === 'data: [DONE]') continue;
-                    if (line.startsWith('data: ')) {
+                    const trimmed = line.trim();
+                    if (trimmed === '' || trimmed === 'data: [DONE]') continue;
+                    if (trimmed.startsWith('data: ')) {
                         try {
-                            const data = JSON.parse(line.slice(6));
-                            if (data.choices[0].delta.content) {
+                            const data = JSON.parse(trimmed.slice(6));
+                            const delta = data.choices && data.choices[0] && data.choices[0].delta;
+                            if (delta && delta.content) {
                                 if (state.isThinking) {
                                     state.isThinking = false;
                                     conv.messages[conv.messages.length - 1].isThinking = false;
@@ -420,17 +482,31 @@
                                     
                                     startStreamRenderer();
                                 }
-                                state.streamBuffer += data.choices[0].delta.content;
+                                state.streamBuffer += delta.content;
                                 conv.messages[conv.messages.length - 1].content = state.streamBuffer;
                             }
-                        } catch (e) {}
+                        } catch (e) {
+                            // JSON parse error — likely an incomplete chunk, skip
+                        }
                     }
                 }
+            }
+            
+            // Process any remaining buffer
+            if (sseBuffer.trim() && sseBuffer.trim() !== 'data: [DONE]' && sseBuffer.trim().startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(sseBuffer.trim().slice(6));
+                    const delta = data.choices && data.choices[0] && data.choices[0].delta;
+                    if (delta && delta.content) {
+                        state.streamBuffer += delta.content;
+                        conv.messages[conv.messages.length - 1].content = state.streamBuffer;
+                    }
+                } catch(e) {}
             }
         } catch (e) {
             if (e.name !== 'AbortError') {
                 conv.messages[conv.messages.length - 1].isThinking = false;
-                conv.messages[conv.messages.length - 1].content = '发送失败，请检查网络或 API Key。';
+                conv.messages[conv.messages.length - 1].content = e.message || '发送失败，请检查网络或 API Key。';
                 renderActiveConversation('append');
             }
         } finally {
