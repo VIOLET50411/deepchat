@@ -319,38 +319,40 @@
         // Also detect touch-initiated scrolls
         DOM.messagesContainer.addEventListener('touchmove', () => { state.userScrolledUp = true; }, { passive: true, once: false });
         
-        const renderLoop = () => {
+        let lastRenderTime = 0;
+        const renderLoop = (timestamp) => {
             const diff = state.streamBuffer.length - state.renderedContent.length;
             
             if (diff > 0) {
-                let chunkSize = 1;
-                if (diff > 100) chunkSize = Math.ceil(diff / 5);
-                else if (diff > 20) chunkSize = Math.ceil(diff / 10);
-                else if (diff > 5) chunkSize = 2;
-                
-                state.renderedContent += state.streamBuffer.substring(state.renderedContent.length, state.renderedContent.length + chunkSize);
-                
-                const lastEl = DOM.messagesList.lastElementChild;
-                if (lastEl && lastEl.classList.contains('assistant')) {
-                    const bubble = lastEl.querySelector('.message-bubble');
-                    if (bubble) {
-                        bubble.innerHTML = renderMarkdown(state.renderedContent);
-                        if (typeof renderMathInElement !== 'undefined') {
-                            renderMathInElement(bubble, {
-                                delimiters: [
-                                    {left: '$$', right: '$$', display: true},
-                                    {left: '$', right: '$', display: false},
-                                    {left: '\\(', right: '\\)', display: false},
-                                    {left: '\\[', right: '\\]', display: true}
-                                ],
-                                throwOnError: false
-                            });
-                        }
-                        // Only auto-scroll if user hasn't manually scrolled up
-                        if (!state.userScrolledUp) {
-                            DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+                // Throttle heavy markdown/KaTeX rendering to ~30fps to prevent CPU jank on long messages
+                if (!lastRenderTime || timestamp - lastRenderTime > 30) {
+                    // Calculate dynamic chunk size to ensure smooth typing feel without falling behind
+                    let chunkSize = diff > 50 ? diff : Math.ceil(diff / 3);
+                    
+                    state.renderedContent += state.streamBuffer.substring(state.renderedContent.length, state.renderedContent.length + chunkSize);
+                    
+                    const lastEl = DOM.messagesList.lastElementChild;
+                    if (lastEl && lastEl.classList.contains('assistant')) {
+                        const bubble = lastEl.querySelector('.message-bubble');
+                        if (bubble) {
+                            bubble.innerHTML = renderMarkdown(state.renderedContent);
+                            if (typeof renderMathInElement !== 'undefined') {
+                                renderMathInElement(bubble, {
+                                    delimiters: [
+                                        {left: '$$', right: '$$', display: true},
+                                        {left: '$', right: '$', display: false},
+                                        {left: '\\(', right: '\\)', display: false},
+                                        {left: '\\[', right: '\\]', display: true}
+                                    ],
+                                    throwOnError: false
+                                });
+                            }
+                            if (!state.userScrolledUp) {
+                                DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+                            }
                         }
                     }
+                    lastRenderTime = timestamp;
                 }
             } else if (!state.isGenerating && diff === 0) {
                 DOM.messagesContainer.removeEventListener('scroll', onUserScroll);
