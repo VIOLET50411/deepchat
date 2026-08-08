@@ -69,6 +69,8 @@ html[data-theme="dark"] .icon-moon { display: block !important; }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html {
     font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     /* Keep the PWA shell on iOS's full layout viewport. */
     height: 100vh;
     min-height: 100vh;
@@ -653,6 +655,24 @@ html[data-theme="dark"] .settings-row:active { background: rgba(255,255,255,0.06
     color: var(--text-primary);
     flex: 1;
 }
+.settings-detail-row {
+    display: block;
+    padding: 16px;
+    cursor: default;
+}
+.settings-detail-heading {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 28px;
+}
+.settings-detail-heading .settings-icon {
+    margin-right: 0;
+}
+.settings-detail-heading .settings-label {
+    flex: 0 1 auto;
+    min-width: 0;
+}
 .settings-value {
     font-size: 17px;
     color: #8e8e93;
@@ -688,23 +708,43 @@ html[data-theme="dark"] .settings-divider { background: #38383a; }
 }
 
 .system-prompt-textarea {
-    width: 100%;
-    min-height: 80px;
-    max-height: 160px;
+    display: block;
+    width: calc(100% - 38px);
+    max-width: calc(100% - 38px);
+    min-width: 0;
+    min-height: 104px;
+    max-height: 200px;
+    margin: 12px 0 0 38px;
     resize: vertical;
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 12px;
-    font-size: 14px;
+    border: 1px solid rgba(60, 60, 67, 0.18);
+    border-radius: 16px;
+    padding: 12px 14px;
+    font-size: 16px;
     font-family: var(--font-sans);
-    background: var(--bg-input);
+    background: rgba(255, 255, 255, 0.74);
     color: var(--text-primary);
     outline: none;
     box-sizing: border-box;
     line-height: 1.5;
+    -webkit-appearance: none;
+    appearance: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 1px 2px rgba(0, 0, 0, 0.03);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 .system-prompt-textarea:focus {
-    border-color: var(--blue-action);
+    border-color: rgba(0, 122, 255, 0.78);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+html[data-theme="dark"] .system-prompt-textarea {
+    background: rgba(44, 44, 46, 0.88);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+html[data-theme="dark"] .system-prompt-textarea:focus {
+    border-color: rgba(10, 132, 255, 0.9);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .settings-help-text {
@@ -713,8 +753,12 @@ html[data-theme="dark"] .settings-divider { background: #38383a; }
     line-height: 1.45;
 }
 .settings-row > .settings-help-text { margin: -2px 0 0 38px; }
+.settings-detail-row > .settings-detail-help { margin: 8px 0 10px 38px; }
 .local-mode-row { align-items: flex-start; gap: 0; }
 .local-mode-row .settings-icon { margin-top: 2px; }
+.local-mode-row > div { flex: 1; min-width: 0; }
+.local-mode-row .settings-label { flex: 0 1 auto; }
+.local-mode-row .settings-help-text { margin-top: 6px; }
 
 .settings-row-purple .settings-icon,
 .settings-row-purple .settings-label {
