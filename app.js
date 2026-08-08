@@ -32,6 +32,9 @@
         themeToggle: $('#themeToggle'),
 
         conversationList: $('#conversationList'),
+        conversationMenuOverlay: $('#conversationMenuOverlay'),
+        conversationMenu: $('#conversationMenu'),
+        conversationMenuPinLabel: $('#conversationMenuPinLabel'),
         welcomeScreen: $('#welcomeScreen'),
         messagesContainer: $('#messagesContainer'),
         messagesList: $('#messagesList'),
@@ -153,8 +156,24 @@
     function loadData() {
         try {
             const c = localStorage.getItem(STORAGE_KEYS.CONVERSATIONS);
-            if (c) state.conversations = JSON.parse(c);
-            state.activeConversationId = localStorage.getItem(STORAGE_KEYS.ACTIVE_CONV);
+            if (c) {
+                const parsedConversations = JSON.parse(c);
+                state.conversations = Array.isArray(parsedConversations)
+                    ? parsedConversations
+                        .filter(conv => conv && conv.id !== undefined && conv.id !== null)
+                        .map(conv => ({
+                            ...conv,
+                            id: String(conv.id),
+                            title: typeof conv.title === 'string' && conv.title.trim() ? conv.title : '新对话',
+                            messages: Array.isArray(conv.messages) ? conv.messages : [],
+                            pinned: conv.pinned === true
+                        }))
+                    : [];
+            }
+            state.activeConversationId = localStorage.getItem(STORAGE_KEYS.ACTIVE_CONV) || null;
+            if (state.activeConversationId && !state.conversations.some(conv => conv.id === state.activeConversationId)) {
+                state.activeConversationId = state.conversations[0]?.id || null;
+            }
             const s = localStorage.getItem(STORAGE_KEYS.SETTINGS);
             if (s) state.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(s) };
         } catch (e) {}
@@ -167,7 +186,7 @@
     }
 
     function createConversation() {
-        const conv = { id: Date.now().toString(), title: '新对话', messages: [] };
+        const conv = { id: Date.now().toString(), title: '新对话', messages: [], pinned: false };
         state.conversations.unshift(conv);
         state.activeConversationId = conv.id;
         saveData();
@@ -176,18 +195,44 @@
         toggleDrawer(false);
     }
 
+    function getOrderedConversations() {
+        return state.conversations.slice().sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
+    }
+
     function renderSidebar() {
-        DOM.conversationList.innerHTML = state.conversations.map(c => `
+        const conversations = getOrderedConversations();
+        DOM.conversationList.innerHTML = conversations.map(c => {
+            const convId = escapeHtml(String(c.id));
+            return `
             <div class="conv-item-wrapper">
-                <div class="conv-item-delete" data-conv-id="${c.id}">删除</div>
-                <div class="conv-item ${c.id === state.activeConversationId ? 'active' : ''}" data-conv-id="${c.id}">
-                    <span class="conv-title">${escapeHtml(c.title || '新对话')}</span>
-                    <button type="button" class="btn-rename" aria-label="重命名对话" onclick="event.stopPropagation(); window.__renameConv('${c.id}')">
+                <div class="conv-item-delete" data-conv-id="${convId}" role="button" aria-label="删除对话">删除</div>
+                <div class="conv-item ${c.id === state.activeConversationId ? 'active' : ''}" data-conv-id="${convId}">
+                    <span class="conv-title-wrap">
+                        <svg class="conv-pin-icon${c.pinned ? ' is-visible' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l1 7 3 3v2H5v-2l3-3 1-7Z"/><path d="M12 15v6"/></svg>
+                        <span class="conv-title">${escapeHtml(c.title || '新对话')}</span>
+                    </span>
+                    <div class="conv-actions">
+                    <button type="button" class="btn-rename" data-conv-action="rename" data-conv-id="${convId}" aria-label="重命名对话">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                     </button>
+                    <button type="button" class="btn-conv-more" data-conv-action="menu" data-conv-id="${convId}" aria-label="对话操作" aria-haspopup="dialog">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="19" cy="12" r="1" fill="currentColor"/></svg>
+                    </button>
+                    </div>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
+
+        DOM.conversationList.querySelectorAll('[data-conv-action]').forEach(button => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const action = button.dataset.convAction;
+                const convId = button.dataset.convId;
+                if (action === 'rename') window.__renameConv(convId);
+                if (action === 'menu') showConversationMenu(convId);
+            });
+        });
         
         // Bind click events for switching conversations
         DOM.conversationList.querySelectorAll('.conv-item').forEach(el => {
@@ -203,6 +248,64 @@
         // Bind swipe-to-delete
         bindSwipeDelete();
     }
+
+    function deleteConversation(id, { confirmDelete = true } = {}) {
+        const conversation = state.conversations.find(conv => conv.id === id);
+        if (!conversation) return false;
+
+        if (confirmDelete && !window.confirm(`确定删除“${conversation.title || '新对话'}”吗？`)) return false;
+
+        const orderedBeforeDelete = getOrderedConversations();
+        const removedIndex = orderedBeforeDelete.findIndex(conv => conv.id === id);
+        const wasActive = state.activeConversationId === id;
+        state.conversations = state.conversations.filter(conv => conv.id !== id);
+
+        if (wasActive && state.conversations.length > 0) {
+            const remaining = getOrderedConversations();
+            const replacement = remaining[removedIndex] || remaining[removedIndex - 1] || remaining[0];
+            state.activeConversationId = replacement?.id || null;
+        } else if (state.conversations.length === 0) {
+            state.activeConversationId = null;
+        }
+
+        saveData();
+        renderSidebar();
+
+        if (wasActive) {
+            if (state.activeConversationId) {
+                renderActiveConversation('switch');
+            } else {
+                createConversation();
+            }
+        }
+
+        return true;
+    }
+
+    let activeConversationMenuId = null;
+
+    function showConversationMenu(id) {
+        const conversation = state.conversations.find(conv => conv.id === id);
+        if (!conversation || !DOM.conversationMenuOverlay || !DOM.conversationMenu) return;
+
+        activeConversationMenuId = id;
+        if (DOM.conversationMenuPinLabel) {
+            DOM.conversationMenuPinLabel.textContent = conversation.pinned ? '取消置顶' : '置顶对话';
+        }
+        DOM.conversationMenuOverlay.setAttribute('aria-hidden', 'false');
+        DOM.conversationMenuOverlay.classList.add('active');
+        if ('vibrate' in navigator) navigator.vibrate(15);
+        requestAnimationFrame(() => DOM.conversationMenuPinLabel?.closest('button')?.focus({ preventScroll: true }));
+    }
+
+    function hideConversationMenu() {
+        if (!DOM.conversationMenuOverlay) return;
+        DOM.conversationMenuOverlay.classList.remove('active');
+        DOM.conversationMenuOverlay.setAttribute('aria-hidden', 'true');
+        activeConversationMenuId = null;
+    }
+
+    window.__openConversationMenu = showConversationMenu;
 
     function bindSwipeDelete() {
         DOM.conversationList.querySelectorAll('.conv-item-wrapper').forEach(wrapper => {
@@ -257,14 +360,7 @@
             deleteBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
                 const convId = deleteBtn.dataset.convId;
-                state.conversations = state.conversations.filter(c => c.id !== convId);
-                if (state.activeConversationId === convId) {
-                    state.activeConversationId = state.conversations.length > 0 ? state.conversations[0].id : null;
-                    if (state.activeConversationId) renderActiveConversation('switch');
-                }
-                saveData();
-                renderSidebar();
-                if (state.conversations.length === 0) createConversation();
+                deleteConversation(convId, { confirmDelete: false });
             });
         });
     }
@@ -943,6 +1039,34 @@
             }, 2000);
         }
 
+        if (DOM.conversationMenuOverlay && DOM.conversationMenu) {
+            DOM.conversationMenuOverlay.addEventListener('click', (e) => {
+                if (e.target === DOM.conversationMenuOverlay) hideConversationMenu();
+            });
+
+            DOM.conversationMenu.addEventListener('click', (e) => {
+                const item = e.target.closest('.conversation-menu-item');
+                if (!item) return;
+
+                const action = item.dataset.action;
+                const conversationId = activeConversationMenuId;
+                const conversation = state.conversations.find(conv => conv.id === conversationId);
+
+                if (action === 'pin' && conversation) {
+                    conversation.pinned = !conversation.pinned;
+                    hideConversationMenu();
+                    saveData();
+                    renderSidebar();
+                    showToast(conversation.pinned ? '已置顶对话' : '已取消置顶');
+                } else if (action === 'delete' && conversationId) {
+                    hideConversationMenu();
+                    if (deleteConversation(conversationId)) showToast('已删除对话');
+                } else {
+                    hideConversationMenu();
+                }
+            });
+        }
+
         ctxMenu.addEventListener('click', (e) => {
             const item = e.target.closest('.context-menu-item');
             if (!item || !activeMessageId) return;
@@ -1039,7 +1163,9 @@
         });
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape') return;
-            if (DOM.searchOverlay.classList.contains('active')) {
+            if (DOM.conversationMenuOverlay?.classList.contains('active')) {
+                hideConversationMenu();
+            } else if (DOM.searchOverlay.classList.contains('active')) {
                 DOM.closeSearchBtn.click();
             } else if (DOM.settingsPanel.classList.contains('active')) {
                 DOM.closeSettingsBtn.click();
