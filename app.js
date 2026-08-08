@@ -2,57 +2,35 @@
     'use strict';
 
     const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme' };
-    const DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-v4-pro', temperature: 1.0, maxTokens: 8192, systemPrompt: '你是一个有帮助的AI助手。请记住整个对话的上下文，包括用户之前提出的问题、给出的选项和做出的选择。在回答时始终参考之前的对话内容。', userName: 'Locin', userAvatar: null, currentBalance: null, baseBalance: null };
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyCAKFq9KcvzitLlEr14tRSCUVDAZ1aaA_s",
-        authDomain: "deepchat-sync.firebaseapp.com",
-        projectId: "deepchat-sync",
-        storageBucket: "deepchat-sync.firebasestorage.app",
-        messagingSenderId: "534989412032",
-        appId: "1:534989412032:web:bc53f75909b6ef29887f25"
+    const DEFAULT_LONG_TERM_INSTRUCTIONS = '当任务需要选择方案、计划或下一步时，请提供 2–4 个清晰、具体的编号选项，并标注推荐项；如果用户明确要求每次都给选项，就在后续每一轮继续遵守，但任务已完全确定且不需要选择时不要为了凑数制造无意义选项。用户要求你完成任务时，请在同一轮立即开始执行，并给出实际结果、已完成的第一步或可验证的进展；不要只说“我会”“准备”“将要”然后停下。如果确实受阻，请明确说明具体阻塞点，并给出能继续推进的替代方案。';
+    const DEFAULT_SETTINGS = {
+        apiKey: '',
+        model: 'deepseek-v4-pro',
+        temperature: 1.0,
+        maxTokens: 8192,
+        systemPrompt: '你是一个有帮助的AI助手。请记住整个对话的上下文，包括用户之前提出的问题、给出的选项和做出的选择。在回答时始终参考之前的对话内容。',
+        longTermInstructions: DEFAULT_LONG_TERM_INSTRUCTIONS,
+        userName: 'Locin',
+        userAvatar: null,
+        currentBalance: null,
+        baseBalance: null
     };
 
-    let auth = null;
-    let db = null;
-    if (typeof firebase !== 'undefined') {
-        firebase.initializeApp(firebaseConfig);
-        auth = firebase.auth();
-        db = firebase.firestore();
-    }
-    
-    let currentUser = null;
-    let syncTimeout = null;
-
-    let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null, streamBuffer: '', renderedContent: '', streamRAFId: null, isThinking: false, editingMessageId: null, userScrolledUp: false };
+    let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null, streamBuffer: '', renderedContent: '', streamRAFId: null, streamMessageId: null, streamScrollCleanup: null, isThinking: false, editingMessageId: null, userScrolledUp: false };
+    let lastDrawerFocus = null;
 
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => document.querySelectorAll(sel);
 
     const DOM = {
         html: document.documentElement,
-        mainView: $('.main-view'),
+        mainView: $('#mainView'),
         mainOverlay: $('#mainOverlay'),
-        menuBtn: $('#btnMenu'),
-        newChatBtnMain: $('#btnNewConv'),
+        menuBtn: $('#menuBtn'),
+        closeSidebarBtn: $('#closeSidebarBtn'),
+        newChatBtnMain: $('#newChatBtnMain'),
         themeToggle: $('#themeToggle'),
-        
-        // Auth / Sync UI
-        authOverlay: $('#authOverlay'),
-        authModal: $('#authModal'),
-        btnCloseAuth: $('#btnCloseAuth'),
-        btnLoginMenu: $('#btnLogin'),
-        authEmail: $('#authEmail'),
-        authPassword: $('#authPassword'),
-        btnDoLogin: $('#btnDoLogin'),
-        btnDoRegister: $('#btnDoRegister'),
-        btnDoLogout: $('#btnDoLogout'),
-        authErrorMsg: $('#authErrorMsg'),
-        authBodyUnlogged: $('#authBodyUnlogged'),
-        authBodyLogged: $('#authBodyLogged'),
-        userEmailDisplay: $('#userEmailDisplay'),
-        syncStatus: $('#syncStatus'),
-        
+
         conversationList: $('#conversationList'),
         welcomeScreen: $('#welcomeScreen'),
         messagesContainer: $('#messagesContainer'),
@@ -84,7 +62,8 @@
         profileAvatarInitials: $('#profileAvatarInitials'),
         avatarUploadInput: $('#avatarUploadInput'),
         profileName: $('#profileName'),
-        systemPromptInput: $('#systemPromptInput')
+        systemPromptInput: $('#systemPromptInput'),
+        longTermInstructionsInput: $('#longTermInstructionsInput')
     };
 
     function updateProfileUI() {
@@ -126,8 +105,24 @@
     }
 
     function toggleDrawer(open) {
-        if (open) DOM.mainView.classList.add('drawer-open');
-        else DOM.mainView.classList.remove('drawer-open');
+        const shouldOpen = Boolean(open);
+        if (shouldOpen) {
+            if (!DOM.mainView.classList.contains('drawer-open')) {
+                lastDrawerFocus = document.activeElement;
+            }
+            DOM.mainView.classList.add('drawer-open');
+            DOM.menuBtn.setAttribute('aria-expanded', 'true');
+            const closeButton = DOM.closeSidebarBtn;
+            if (closeButton) requestAnimationFrame(() => closeButton.focus({ preventScroll: true }));
+        } else {
+            DOM.mainView.classList.remove('drawer-open');
+            DOM.menuBtn.setAttribute('aria-expanded', 'false');
+            const focusTarget = lastDrawerFocus;
+            if (focusTarget && typeof focusTarget.focus === 'function') {
+                requestAnimationFrame(() => focusTarget.focus({ preventScroll: true }));
+            }
+            lastDrawerFocus = null;
+        }
     }
 
     function handleInputState() {
@@ -165,62 +160,10 @@
         } catch (e) {}
     }
 
-    function syncFromCloud() {
-        if (!currentUser || !db) return;
-        DOM.syncStatus.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-8.36l5.67-5.67"/></svg><span>同步中...</span>';
-        DOM.syncStatus.className = 'sync-status syncing';
-        
-        db.collection('users').doc(currentUser.uid).get().then(doc => {
-            if (doc.exists) {
-                const data = doc.data();
-                if (data.conversations && data.conversations.length > 0) {
-                    state.conversations = data.conversations;
-                    state.activeConversationId = data.activeConversationId;
-                    if (data.settings) state.settings = { ...DEFAULT_SETTINGS, ...data.settings };
-                    renderSidebar();
-                    renderActiveConversation();
-                    applyTheme();
-                }
-                // Save loaded cloud data to local storage, which also debounces a write back (harmless)
-                saveData();
-            } else {
-                // Cloud is empty, push local data up
-                saveData();
-            }
-            DOM.syncStatus.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>已同步</span>';
-            DOM.syncStatus.className = 'sync-status synced';
-        }).catch(err => {
-            console.error("Fetch error:", err);
-            DOM.syncStatus.innerHTML = '<svg class="icon-offline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 15.6l-5.6-5.6"/><path d="M15.4 15.4l5.6-5.6"/><path d="M10.6 10.6l-5.6 5.6"/><path d="M15.4 10.6l5.6 5.6"/><path d="M3 3l18 18"/></svg><span>云端断开</span>';
-            DOM.syncStatus.className = 'sync-status';
-        });
-    }
-
     function saveData() {
         localStorage.setItem(STORAGE_KEYS.CONVERSATIONS, JSON.stringify(state.conversations));
         localStorage.setItem(STORAGE_KEYS.ACTIVE_CONV, state.activeConversationId || '');
         localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
-        
-        if (currentUser && db) {
-            DOM.syncStatus.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-8.36l5.67-5.67"/></svg><span>同步中...</span>';
-            DOM.syncStatus.className = 'sync-status syncing';
-            clearTimeout(syncTimeout);
-            syncTimeout = setTimeout(() => {
-                db.collection('users').doc(currentUser.uid).set({
-                    conversations: state.conversations,
-                    activeConversationId: state.activeConversationId,
-                    settings: state.settings,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                }).then(() => {
-                    DOM.syncStatus.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>已同步</span>';
-                    DOM.syncStatus.className = 'sync-status synced';
-                }).catch(err => {
-                    console.error("Sync error:", err);
-                    DOM.syncStatus.innerHTML = '<svg class="icon-offline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 15.6l-5.6-5.6"/><path d="M15.4 15.4l5.6-5.6"/><path d="M10.6 10.6l-5.6 5.6"/><path d="M15.4 10.6l5.6 5.6"/><path d="M3 3l18 18"/></svg><span>同步失败</span>';
-                    DOM.syncStatus.className = 'sync-status';
-                });
-            }, 3000); // Debounce 3s to save quota
-        }
     }
 
     function createConversation() {
@@ -238,8 +181,8 @@
             <div class="conv-item-wrapper">
                 <div class="conv-item-delete" data-conv-id="${c.id}">删除</div>
                 <div class="conv-item ${c.id === state.activeConversationId ? 'active' : ''}" data-conv-id="${c.id}">
-                    <span class="conv-title">${escapeHtml(c.title)}</span>
-                    <button class="btn-rename" onclick="event.stopPropagation(); window.__renameConv('${c.id}')">
+                    <span class="conv-title">${escapeHtml(c.title || '新对话')}</span>
+                    <button type="button" class="btn-rename" aria-label="重命名对话" onclick="event.stopPropagation(); window.__renameConv('${c.id}')">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                     </button>
                 </div>
@@ -248,7 +191,13 @@
         
         // Bind click events for switching conversations
         DOM.conversationList.querySelectorAll('.conv-item').forEach(el => {
-            el.addEventListener('click', () => window.__switchConv(el.dataset.convId));
+            el.addEventListener('click', () => {
+                if (el.dataset.swiped === 'true') {
+                    el.dataset.swiped = 'false';
+                    return;
+                }
+                window.__switchConv(el.dataset.convId);
+            });
         });
         
         // Bind swipe-to-delete
@@ -259,19 +208,31 @@
         DOM.conversationList.querySelectorAll('.conv-item-wrapper').forEach(wrapper => {
             const item = wrapper.querySelector('.conv-item');
             const deleteBtn = wrapper.querySelector('.conv-item-delete');
-            let startX = 0, currentX = 0, swiping = false;
+            let startX = 0, startY = 0, currentX = 0, swiping = false, horizontalGesture = false;
             
             item.addEventListener('touchstart', (e) => {
                 startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
                 currentX = startX;
                 swiping = true;
+                horizontalGesture = false;
                 item.style.transition = 'none';
             }, {passive: true});
             
             item.addEventListener('touchmove', (e) => {
                 if (!swiping) return;
                 currentX = e.touches[0].clientX;
-                let dx = currentX - startX;
+                const currentY = e.touches[0].clientY;
+                const dxFromStart = currentX - startX;
+                const dyFromStart = currentY - startY;
+                if (!horizontalGesture && Math.abs(dyFromStart) > 8 && Math.abs(dyFromStart) > Math.abs(dxFromStart)) {
+                    swiping = false;
+                    item.style.transform = 'translateX(0)';
+                    return;
+                }
+                if (Math.abs(dxFromStart) > 8 && Math.abs(dxFromStart) > Math.abs(dyFromStart)) horizontalGesture = true;
+                if (!horizontalGesture) return;
+                let dx = dxFromStart;
                 if (dx > 0) dx = 0; // Only allow left swipe
                 if (dx < -80) dx = -80;
                 item.style.transform = `translateX(${dx}px)`;
@@ -281,35 +242,44 @@
                 swiping = false;
                 item.style.transition = 'transform 0.2s ease';
                 const dx = currentX - startX;
-                if (dx < -40) {
+                if (horizontalGesture && dx < -40) {
                     item.style.transform = 'translateX(-80px)';
+                    item.classList.add('swipe-open');
+                    item.dataset.swiped = 'true';
+                    window.setTimeout(() => { item.dataset.swiped = 'false'; }, 350);
                 } else {
                     item.style.transform = 'translateX(0)';
+                    item.classList.remove('swipe-open');
                 }
+                horizontalGesture = false;
             });
             
-            deleteBtn.addEventListener('click', () => {
+            deleteBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
                 const convId = deleteBtn.dataset.convId;
                 state.conversations = state.conversations.filter(c => c.id !== convId);
                 if (state.activeConversationId === convId) {
                     state.activeConversationId = state.conversations.length > 0 ? state.conversations[0].id : null;
-                    if (!state.activeConversationId) createConversation();
-                    else renderActiveConversation('switch');
+                    if (state.activeConversationId) renderActiveConversation('switch');
                 }
                 saveData();
                 renderSidebar();
+                if (state.conversations.length === 0) createConversation();
             });
         });
     }
 
-    window.__switchConv = (id) => {
+    function selectConversation(id) {
         if (state.activeConversationId === id) { toggleDrawer(false); return; }
+        if (!state.conversations.some(c => c.id === id)) return;
         state.activeConversationId = id;
         saveData();
         renderSidebar(); // Update active class
         renderActiveConversation('switch');
         toggleDrawer(false);
-    };
+    }
+
+    window.__switchConv = selectConversation;
 
     window.__renameConv = (id) => {
         const conv = state.conversations.find(c => c.id === id);
@@ -392,61 +362,66 @@
         `;
     }
 
-    function startStreamRenderer() {
+    function updateStreamBubble(messageId, content) {
+        const messageEl = Array.from(DOM.messagesList.querySelectorAll('.message.assistant'))
+            .find(el => el.dataset.id === messageId) || DOM.messagesList.lastElementChild;
+        if (!messageEl || !messageEl.classList.contains('assistant')) return;
+        const bubble = messageEl.querySelector('.message-bubble');
+        if (!bubble) return;
+
+        bubble.innerHTML = renderMarkdown(content);
+        if (typeof renderMathInElement !== 'undefined') {
+            renderMathInElement(bubble, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
+                ],
+                throwOnError: false
+            });
+        }
+        if (!state.userScrolledUp) DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
+    }
+
+    function startStreamRenderer(messageId = state.streamMessageId) {
         if (state.streamRAFId) cancelAnimationFrame(state.streamRAFId);
+        if (state.streamScrollCleanup) state.streamScrollCleanup();
         state.userScrolledUp = false;
-        
-        // Listen for user scroll to detect manual scroll-up
+
         const onUserScroll = () => {
             const container = DOM.messagesContainer;
             const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
             state.userScrolledUp = !isNearBottom;
         };
         DOM.messagesContainer.addEventListener('scroll', onUserScroll, { passive: true });
-        // Also detect touch-initiated scrolls
-        DOM.messagesContainer.addEventListener('touchmove', () => { state.userScrolledUp = true; }, { passive: true, once: false });
-        
-        let lastRenderTime = 0;
-        const renderLoop = (timestamp) => {
+        state.streamScrollCleanup = () => {
+            DOM.messagesContainer.removeEventListener('scroll', onUserScroll);
+            state.streamScrollCleanup = null;
+        };
+
+        const renderLoop = () => {
             const diff = state.streamBuffer.length - state.renderedContent.length;
-            
             if (diff > 0) {
-                // Remove throttling per user request: 60fps rendering
-                // Calculate dynamic chunk size to ensure smooth typing feel without falling behind
-                let chunkSize = diff > 50 ? diff : Math.ceil(diff / 3);
-                
-                state.renderedContent += state.streamBuffer.substring(state.renderedContent.length, state.renderedContent.length + chunkSize);
-                
-                const lastEl = DOM.messagesList.lastElementChild;
-                if (lastEl && lastEl.classList.contains('assistant')) {
-                    const bubble = lastEl.querySelector('.message-bubble');
-                    if (bubble) {
-                        bubble.innerHTML = renderMarkdown(state.renderedContent);
-                        if (typeof renderMathInElement !== 'undefined') {
-                            renderMathInElement(bubble, {
-                                delimiters: [
-                                    {left: '$$', right: '$$', display: true},
-                                    {left: '$', right: '$', display: false},
-                                    {left: '\\(', right: '\\)', display: false},
-                                    {left: '\\[', right: '\\]', display: true}
-                                ],
-                                throwOnError: false
-                            });
-                        }
-                        if (!state.userScrolledUp) {
-                            DOM.messagesContainer.scrollTop = DOM.messagesContainer.scrollHeight;
-                        }
-                    }
-                }
-            } else if (!state.isGenerating && diff === 0) {
-                DOM.messagesContainer.removeEventListener('scroll', onUserScroll);
+                const chunkSize = diff > 50 ? diff : Math.max(1, Math.ceil(diff / 3));
+                state.renderedContent += state.streamBuffer.slice(state.renderedContent.length, state.renderedContent.length + chunkSize);
+                updateStreamBubble(messageId, state.renderedContent);
+            } else if (!state.isGenerating) {
+                state.renderedContent = state.streamBuffer;
+                updateStreamBubble(messageId, state.renderedContent);
                 stopStreamRenderer();
                 return;
             }
-            
             state.streamRAFId = requestAnimationFrame(renderLoop);
         };
         state.streamRAFId = requestAnimationFrame(renderLoop);
+    }
+
+    function flushStreamRenderer(messageId = state.streamMessageId) {
+        state.renderedContent = state.streamBuffer;
+        updateStreamBubble(messageId, state.renderedContent);
+        if (state.streamRAFId) cancelAnimationFrame(state.streamRAFId);
+        state.streamRAFId = null;
     }
 
     function stopStreamRenderer() {
@@ -454,6 +429,7 @@
             cancelAnimationFrame(state.streamRAFId);
             state.streamRAFId = null;
         }
+        if (state.streamScrollCleanup) state.streamScrollCleanup();
         state.userScrolledUp = false;
     }
 
@@ -561,14 +537,21 @@
 
     function buildMessagesPayload(conv) {
         const msgs = [];
-        // Always include system prompt for better memory
-        const sysPrompt = state.settings.systemPrompt || DEFAULT_SETTINGS.systemPrompt;
+        // Keep both the task-specific prompt and the user's persistent behavior rules in one
+        // system message so the instruction survives every request and model switch.
+        const basePrompt = String(state.settings.systemPrompt || DEFAULT_SETTINGS.systemPrompt).trim();
+        const longTermInstructions = String(state.settings.longTermInstructions || DEFAULT_LONG_TERM_INSTRUCTIONS).trim();
+        const sysPrompt = [basePrompt, longTermInstructions ? `长期行为要求：\n${longTermInstructions}` : '']
+            .filter(Boolean)
+            .join('\n\n');
         if (sysPrompt) {
             msgs.push({ role: 'system', content: sysPrompt });
         }
         
         // Get conversation messages (exclude the placeholder assistant message)
-        const history = conv.messages.filter(m => !m.isThinking).map(m => ({ role: m.role, content: m.content }));
+        const history = conv.messages
+            .filter(m => !m.isThinking)
+            .map(m => ({ role: m.role, content: String(m.content ?? '') }));
         
         // Smart context window management:
         // DeepSeek models typically support 64k~128k context.
@@ -598,21 +581,59 @@
         return msgs;
     }
 
+    function processSSEEvent(eventText, onData) {
+        const dataLines = eventText.split(/\r?\n/)
+            .filter(line => /^data\s*:/.test(line))
+            .map(line => line.replace(/^data\s*:\s?/, ''));
+        if (dataLines.length === 0) return false;
+
+        const rawData = dataLines.join('\n').trim();
+        if (!rawData || rawData === '[DONE]') return rawData === '[DONE]';
+        try {
+            onData(JSON.parse(rawData));
+        } catch (error) {
+            // A complete SSE event should be valid JSON. Keep the failure visible for
+            // diagnostics, but never discard a later event or abort the stream.
+            console.warn('忽略无法解析的流式事件', error);
+        }
+        return false;
+    }
+
     async function callAPI(conv) {
         setGeneratingState(true);
         state.abortController = new AbortController();
-        
         state.isThinking = true;
         state.streamBuffer = '';
         state.renderedContent = '';
 
-        // Add placeholder AI message (Thinking State)
-        conv.messages.push({ role: 'assistant', content: '', isThinking: true });
+        const streamMessage = { id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, role: 'assistant', content: '', isThinking: true };
+        state.streamMessageId = streamMessage.id;
+        conv.messages.push(streamMessage);
         renderActiveConversation('append');
+
+        const appendDelta = (data) => {
+            const delta = data?.choices?.[0]?.delta;
+            if (!delta) return;
+            const rawContent = delta.content;
+            const content = typeof rawContent === 'string'
+                ? rawContent
+                : Array.isArray(rawContent)
+                    ? rawContent.map(part => typeof part === 'string' ? part : String(part?.text || '')).join('')
+                    : '';
+            if (content === '') return;
+
+            if (state.isThinking) {
+                state.isThinking = false;
+                streamMessage.isThinking = false;
+                renderActiveConversation('append');
+                startStreamRenderer(streamMessage.id);
+            }
+            state.streamBuffer += content;
+            streamMessage.content = state.streamBuffer;
+        };
 
         try {
             const messagesPayload = buildMessagesPayload(conv);
-            
             const payload = {
                 model: state.settings.model,
                 messages: messagesPayload,
@@ -620,8 +641,8 @@
                 max_tokens: state.settings.maxTokens
             };
             if (state.settings.model === 'deepseek-v4-pro') {
-                payload.thinking = { type: "enabled" };
-                payload.reasoning_effort = "high";
+                payload.thinking = { type: 'enabled' };
+                payload.reasoning_effort = 'high';
             }
 
             const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -633,80 +654,67 @@
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => null);
-                const errMsg = errData?.error?.message || `API 错误 (${response.status})`;
-                throw new Error(errMsg);
+                throw new Error(errData?.error?.message || `API 错误 (${response.status})`);
             }
+            if (!response.body || typeof response.body.getReader !== 'function') throw new Error('API 未返回可读取的流。');
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder('utf-8');
-            let sseBuffer = ''; // Buffer for incomplete SSE lines
+            let sseBuffer = '';
+            let doneReceived = false;
 
-            while (true) {
+            const consumeBuffer = (flush = false) => {
+                let separator;
+                while (!doneReceived && (separator = sseBuffer.match(/\r?\n\r?\n/))) {
+                    const eventText = sseBuffer.slice(0, separator.index);
+                    sseBuffer = sseBuffer.slice(separator.index + separator[0].length);
+                    doneReceived = processSSEEvent(eventText, appendDelta);
+                }
+                if (flush && !doneReceived && sseBuffer.trim()) {
+                    doneReceived = processSSEEvent(sseBuffer, appendDelta);
+                    sseBuffer = '';
+                }
+            };
+
+            while (!doneReceived) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                
                 sseBuffer += decoder.decode(value, { stream: true });
-                const lines = sseBuffer.split('\n');
-                
-                // Keep the last element (may be incomplete)
-                sseBuffer = lines.pop() || '';
-                
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed === '' || trimmed === 'data: [DONE]') continue;
-                    if (trimmed.startsWith('data: ')) {
-                        try {
-                            const data = JSON.parse(trimmed.slice(6));
-                            const delta = data.choices && data.choices[0] && data.choices[0].delta;
-                            if (delta && delta.content) {
-                                if (state.isThinking) {
-                                    state.isThinking = false;
-                                    conv.messages[conv.messages.length - 1].isThinking = false;
-                                    
-                                    const lastEl = DOM.messagesList.lastElementChild;
-                                    if (lastEl) lastEl.outerHTML = createMessageHTML(conv.messages[conv.messages.length - 1]);
-                                    
-                                    startStreamRenderer();
-                                }
-                                state.streamBuffer += delta.content;
-                                conv.messages[conv.messages.length - 1].content = state.streamBuffer;
-                            }
-                        } catch (e) {
-                            // JSON parse error — likely an incomplete chunk, skip
-                        }
-                    }
-                }
+                consumeBuffer();
             }
-            
-            // Process any remaining buffer
-            if (sseBuffer.trim() && sseBuffer.trim() !== 'data: [DONE]' && sseBuffer.trim().startsWith('data: ')) {
-                try {
-                    const data = JSON.parse(sseBuffer.trim().slice(6));
-                    const delta = data.choices && data.choices[0] && data.choices[0].delta;
-                    if (delta && delta.content) {
-                        state.streamBuffer += delta.content;
-                        conv.messages[conv.messages.length - 1].content = state.streamBuffer;
-                    }
-                } catch(e) {}
-            }
-        } catch (e) {
-            if (e.name !== 'AbortError') {
-                conv.messages[conv.messages.length - 1].isThinking = false;
-                conv.messages[conv.messages.length - 1].content = e.message || '发送失败，请检查网络或 API Key。';
+            // Flush TextDecoder's pending UTF-8 bytes and process an event without
+            // a trailing blank line. Both cases are common with mobile proxies.
+            sseBuffer += decoder.decode();
+            consumeBuffer(true);
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                state.isThinking = false;
+                streamMessage.isThinking = false;
+                const errorMessage = error.message || '发送失败，请检查网络或 API Key。';
+                streamMessage.content = state.streamBuffer
+                    ? `${state.streamBuffer}\n\n${errorMessage}`
+                    : errorMessage;
+                state.streamBuffer = streamMessage.content;
                 renderActiveConversation('append');
             }
         } finally {
-            setGeneratingState(false);
+            if (!state.isThinking) flushStreamRenderer(streamMessage.id);
             if (state.isThinking) {
-                // If aborted or failed during thinking state
-                conv.messages[conv.messages.length - 1].isThinking = false;
+                state.isThinking = false;
+                streamMessage.isThinking = false;
+                if (!streamMessage.content) streamMessage.content = '模型没有返回内容，请重试。';
                 renderActiveConversation('append');
             }
+            stopStreamRenderer();
+            setGeneratingState(false);
+            state.abortController = null;
+            state.streamMessageId = null;
             saveData();
         }
     }
 
     function renderMarkdown(text) {
+        text = String(text ?? '');
         // Protect LaTeX blocks from marked.js parsing
         const mathBlocks = [];
         text = text.replace(/(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g, (match) => {
@@ -738,7 +746,7 @@
         }
         return html;
     }
-    function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+    function escapeHtml(str) { const div = document.createElement('div'); div.textContent = String(str ?? ''); return div.innerHTML; }
 
     async function fetchBalance() {
         if (!state.settings.apiKey) return;
@@ -810,13 +818,6 @@
             vv.addEventListener('scroll', syncViewport);
             syncViewport();
         }
-
-        // Prevent iOS rubber-band scrolling on non-scrollable elements
-        document.addEventListener('touchmove', (e) => {
-            if (!e.target.closest('.messages-container, .conversation-list, .settings-body')) {
-                e.preventDefault();
-            }
-        }, { passive: false });
 
         // ========== Long Press & Context Menu ==========
         let activeMessageId = null;
@@ -1031,6 +1032,21 @@
         DOM.menuBtn.addEventListener('click', () => toggleDrawer(true));
         DOM.mainOverlay.addEventListener('click', () => toggleDrawer(false));
         DOM.closeSidebarBtn.addEventListener('click', () => toggleDrawer(false));
+        document.addEventListener('click', (e) => {
+            if (DOM.mainView.classList.contains('drawer-open') && !e.target.closest('.sidebar, #menuBtn')) {
+                toggleDrawer(false);
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            if (DOM.searchOverlay.classList.contains('active')) {
+                DOM.closeSearchBtn.click();
+            } else if (DOM.settingsPanel.classList.contains('active')) {
+                DOM.closeSettingsBtn.click();
+            } else if (DOM.mainView.classList.contains('drawer-open')) {
+                toggleDrawer(false);
+            }
+        });
         
         DOM.newChatBtnMain.addEventListener('click', createConversation);
         
@@ -1069,6 +1085,7 @@
             DOM.apiKeyInput.value = state.settings.apiKey;
             DOM.modelSelect.value = state.settings.model;
             if (DOM.systemPromptInput) DOM.systemPromptInput.value = state.settings.systemPrompt || '';
+            if (DOM.longTermInstructionsInput) DOM.longTermInstructionsInput.value = state.settings.longTermInstructions || DEFAULT_LONG_TERM_INSTRUCTIONS;
             updateProfileUI();
             // Update theme label
             const themeText = document.getElementById('themeValueText');
@@ -1080,6 +1097,7 @@
             state.settings.apiKey = DOM.apiKeyInput.value.trim();
             state.settings.model = DOM.modelSelect.value;
             if (DOM.systemPromptInput) state.settings.systemPrompt = DOM.systemPromptInput.value;
+            if (DOM.longTermInstructionsInput) state.settings.longTermInstructions = DOM.longTermInstructionsInput.value.trim() || DEFAULT_LONG_TERM_INSTRUCTIONS;
             saveData();
             fetchBalance();
             DOM.settingsOverlay.classList.remove('active');
@@ -1141,7 +1159,6 @@
                     state.conversations = [];
                     state.activeConversationId = null;
                     saveData();
-                    renderConversationList();
                     createConversation();
                     closeSettings();
                 }
@@ -1158,6 +1175,12 @@
             state.settings.model = DOM.modelSelect.value;
             saveData();
         });
+        if (DOM.longTermInstructionsInput) {
+            DOM.longTermInstructionsInput.addEventListener('change', () => {
+                state.settings.longTermInstructions = DOM.longTermInstructionsInput.value.trim() || DEFAULT_LONG_TERM_INSTRUCTIONS;
+                saveData();
+            });
+        }
 
         // ========== Left Edge Swipe to Open Sidebar ==========
         let edgeStartX = 0, edgeStartY = 0, edgeSwiping = false;
@@ -1220,8 +1243,8 @@
             let results = state.conversations;
             if (query) {
                 results = results.filter(c => {
-                    const titleMatch = c.title && c.title.toLowerCase().includes(query);
-                    const msgMatch = c.messages.some(m => m.content.toLowerCase().includes(query));
+                    const titleMatch = String(c.title || '').toLowerCase().includes(query);
+                    const msgMatch = (c.messages || []).some(m => String(m.content || '').toLowerCase().includes(query));
                     return titleMatch || msgMatch;
                 });
             }
@@ -1242,9 +1265,9 @@
                 
                 // Get a snippet
                 let snippet = '没有内容...';
-                if (conv.messages.length > 0) {
-                    const matchMsg = conv.messages.find(m => m.content.toLowerCase().includes(query));
-                    snippet = matchMsg ? matchMsg.content : conv.messages[conv.messages.length - 1].content;
+                if ((conv.messages || []).length > 0) {
+                    const matchMsg = conv.messages.find(m => String(m.content || '').toLowerCase().includes(query));
+                    snippet = String(matchMsg ? matchMsg.content : conv.messages[conv.messages.length - 1].content || '');
                 }
                 
                 // Format date correctly by ensuring it's a number
@@ -1266,62 +1289,14 @@
                 `;
                 
                 item.addEventListener('click', () => {
-                    switchConversation(conv.id);
+                    selectConversation(conv.id);
                     DOM.searchOverlay.classList.remove('active');
-                    DOM.mainView.classList.remove('drawer-open');
                 });
                 
                 DOM.searchResults.appendChild(item);
             });
         }
 
-        // Auth / Sync UI
-        DOM.btnLoginMenu.addEventListener('click', () => {
-            DOM.authOverlay.classList.add('active');
-            DOM.authModal.classList.add('active');
-            DOM.authErrorMsg.style.display = 'none';
-            toggleDrawer(false);
-        });
-        const closeAuth = () => {
-            DOM.authOverlay.classList.remove('active');
-            DOM.authModal.classList.remove('active');
-        };
-        DOM.btnCloseAuth.addEventListener('click', closeAuth);
-        DOM.authOverlay.addEventListener('click', closeAuth);
-
-        DOM.btnDoLogin.addEventListener('click', () => {
-            if(!auth) return;
-            const email = DOM.authEmail.value.trim();
-            const pwd = DOM.authPassword.value.trim();
-            auth.signInWithEmailAndPassword(email, pwd).then(() => {
-                closeAuth();
-                showToast('登录成功，已开启同步');
-            }).catch(e => {
-                DOM.authErrorMsg.style.display = 'block';
-                DOM.authErrorMsg.textContent = '登录失败: ' + e.message;
-            });
-        });
-
-        DOM.btnDoRegister.addEventListener('click', () => {
-            if(!auth) return;
-            const email = DOM.authEmail.value.trim();
-            const pwd = DOM.authPassword.value.trim();
-            auth.createUserWithEmailAndPassword(email, pwd).then(() => {
-                closeAuth();
-                showToast('注册成功，已开启同步');
-            }).catch(e => {
-                DOM.authErrorMsg.style.display = 'block';
-                DOM.authErrorMsg.textContent = '注册失败: ' + e.message;
-            });
-        });
-
-        DOM.btnDoLogout.addEventListener('click', () => {
-            if(!auth) return;
-            auth.signOut().then(() => {
-                closeAuth();
-                showToast('已登出');
-            });
-        });
     }
 
     function init() {
@@ -1334,28 +1309,6 @@
         
         bindEvents();
         fetchBalance();
-        
-        if (auth) {
-            auth.onAuthStateChanged(user => {
-                currentUser = user;
-                if (user) {
-                    DOM.authBodyUnlogged.style.display = 'none';
-                    DOM.authBodyLogged.style.display = 'block';
-                    DOM.userEmailDisplay.textContent = user.email;
-                    DOM.btnLoginMenu.textContent = '账号设置';
-                    DOM.syncStatus.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-8.36l5.67-5.67"/></svg><span>已连接</span>';
-                    DOM.syncStatus.className = 'sync-status synced';
-                    syncFromCloud();
-                } else {
-                    DOM.authBodyUnlogged.style.display = 'block';
-                    DOM.authBodyLogged.style.display = 'none';
-                    DOM.userEmailDisplay.textContent = '未登录 (本地模式)';
-                    DOM.btnLoginMenu.textContent = '登录 / 同步';
-                    DOM.syncStatus.innerHTML = '<svg class="icon-offline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 15.6l-5.6-5.6"/><path d="M15.4 15.4l5.6-5.6"/><path d="M10.6 10.6l-5.6 5.6"/><path d="M15.4 10.6l5.6 5.6"/><path d="M3 3l18 18"/></svg><span>本地模式</span>';
-                    DOM.syncStatus.className = 'sync-status';
-                }
-            });
-        }
     }
 
     document.addEventListener('DOMContentLoaded', init);
