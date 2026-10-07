@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" href="icon.svg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" id="hljs-theme">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-    <link rel="stylesheet" href="style.css?v=36">
+    <link rel="stylesheet" href="style.css?v=37">
 </head>
 <body>
     <div id="app" class="app-container">
@@ -154,10 +154,14 @@
                             <svg class="settings-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                             <div class="settings-label">模型选择</div>
                             <select id="modelSelect" class="settings-value-select">
-                                <option value="deepseek-v4-flash">V4 Flash</option>
-                                <option value="deepseek-v4-pro">V4 Pro</option>
+                                <option value="deepseek-flash">DeepSeek-V4.1-Flash (默认)</option>
+                                <option value="deepseek-v4-pro">DeepSeek-V4-Pro</option>
+                                <option value="deepseek-chat">DeepSeek-Chat</option>
+                                <option value="deepseek-reasoner">DeepSeek-Reasoner</option>
                             </select>
-                            <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            <button type="button" class="btn-refresh-models" id="refreshModelsBtn" title="从 API 同步最新模型" aria-label="从 API 同步最新模型">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                            </button>
                         </div>
                         <div class="settings-divider"></div>
                         <!-- System Prompt -->

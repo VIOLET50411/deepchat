@@ -1,11 +1,17 @@
 (function () {
     'use strict';
 
-    const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme' };
+    const STORAGE_KEYS = { CONVERSATIONS: 'dsc_convs', ACTIVE_CONV: 'dsc_active', SETTINGS: 'dsc_settings', THEME: 'dsc_theme', MODELS: 'dsc_models' };
+    const PRESET_MODELS = [
+        { id: 'deepseek-flash', label: 'DeepSeek-V4.1-Flash (默认)' },
+        { id: 'deepseek-v4-pro', label: 'DeepSeek-V4-Pro' },
+        { id: 'deepseek-chat', label: 'DeepSeek-Chat' },
+        { id: 'deepseek-reasoner', label: 'DeepSeek-Reasoner' }
+    ];
     const DEFAULT_LONG_TERM_INSTRUCTIONS = '当任务需要选择方案、计划或下一步时，请提供 2–4 个清晰、具体的编号选项，并标注推荐项；如果用户明确要求每次都给选项，就在后续每一轮继续遵守，但任务已完全确定且不需要选择时不要为了凑数制造无意义选项。用户要求你完成任务时，请在同一轮立即开始执行，并给出实际结果、已完成的第一步或可验证的进展；不要只说“我会”“准备”“将要”然后停下。如果确实受阻，请明确说明具体阻塞点，并给出能继续推进的替代方案。';
     const DEFAULT_SETTINGS = {
         apiKey: '',
-        model: 'deepseek-v4-pro',
+        model: 'deepseek-flash',
         temperature: 1.0,
         maxTokens: 8192,
         systemPrompt: '你是一个有帮助的AI助手。请记住整个对话的上下文，包括用户之前提出的问题、给出的选项和做出的选择。在回答时始终参考之前的对话内容。',
@@ -16,7 +22,7 @@
         baseBalance: null
     };
 
-    let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, isGenerating: false, abortController: null, streamBuffer: '', renderedContent: '', streamRAFId: null, streamMessageId: null, streamScrollCleanup: null, isThinking: false, editingMessageId: null, userScrolledUp: false };
+    let state = { conversations: [], activeConversationId: null, settings: { ...DEFAULT_SETTINGS }, availableModels: [...PRESET_MODELS], isFetchingModels: false, isGenerating: false, abortController: null, streamBuffer: '', renderedContent: '', streamRAFId: null, streamMessageId: null, streamScrollCleanup: null, isThinking: false, editingMessageId: null, userScrolledUp: false };
     let lastDrawerFocus = null;
 
     const $ = (sel) => document.querySelector(sel);
@@ -51,6 +57,7 @@
         closeSettingsBtn: $('#closeSettingsBtn'),
         apiKeyInput: $('#apiKeyInput'),
         modelSelect: $('#modelSelect'),
+        refreshModelsBtn: $('#refreshModelsBtn'),
         
         balanceText: $('#balanceText'),
         balanceRingFill: $('#balanceRingFill'),
@@ -175,7 +182,21 @@
                 state.activeConversationId = state.conversations[0]?.id || null;
             }
             const s = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-            if (s) state.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(s) };
+            if (s) {
+                state.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(s) };
+                if (state.settings.model === 'deepseek-v4-flash') {
+                    state.settings.model = 'deepseek-flash';
+                }
+            }
+            const cachedModels = localStorage.getItem(STORAGE_KEYS.MODELS);
+            if (cachedModels) {
+                try {
+                    const parsed = JSON.parse(cachedModels);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        state.availableModels = parsed;
+                    }
+                } catch (err) {}
+            }
         } catch (e) {}
     }
 
@@ -736,7 +757,7 @@
                 stream: true,
                 max_tokens: state.settings.maxTokens
             };
-            if (state.settings.model === 'deepseek-v4-pro') {
+            if (state.settings.model === 'deepseek-v4-pro' || state.settings.model.endsWith('-pro')) {
                 payload.thinking = { type: 'enabled' };
                 payload.reasoning_effort = 'high';
             }
@@ -886,6 +907,119 @@
         } catch (e) {}
     }
 
+    function showToast(msg) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = msg;
+        container.appendChild(toast);
+        void toast.offsetWidth;
+        toast.classList.add('active');
+        setTimeout(() => {
+            toast.classList.remove('active');
+            setTimeout(() => toast.remove(), 300);
+        }, 2200);
+    }
+
+    function formatModelLabel(modelId) {
+        if (!modelId) return '';
+        const map = {
+            'deepseek-flash': 'DeepSeek-V4.1-Flash (默认)',
+            'deepseek-v4-flash': 'DeepSeek-V4-Flash',
+            'deepseek-v4-pro': 'DeepSeek-V4-Pro',
+            'deepseek-chat': 'DeepSeek-Chat',
+            'deepseek-reasoner': 'DeepSeek-Reasoner (R1)'
+        };
+        if (map[modelId]) return map[modelId];
+
+        return String(modelId)
+            .split('-')
+            .map(part => {
+                if (part.toLowerCase() === 'deepseek') return 'DeepSeek';
+                if (/^v\d+/i.test(part)) return part.toUpperCase();
+                return part.charAt(0).toUpperCase() + part.slice(1);
+            })
+            .join('-');
+    }
+
+    function renderModelOptions(selectedModel) {
+        if (!DOM.modelSelect) return;
+        const targetModel = selectedModel || state.settings.model || 'deepseek-flash';
+
+        const models = Array.isArray(state.availableModels) && state.availableModels.length > 0
+            ? [...state.availableModels]
+            : [...PRESET_MODELS];
+
+        if (targetModel && targetModel !== '__custom__' && !models.some(m => m.id === targetModel)) {
+            models.unshift({ id: targetModel, label: formatModelLabel(targetModel) });
+        }
+
+        let html = '';
+        models.forEach(m => {
+            const isSelected = m.id === targetModel ? ' selected' : '';
+            html += `<option value="${escapeHtml(m.id)}"${isSelected}>${escapeHtml(m.label || formatModelLabel(m.id))}</option>`;
+        });
+        html += `<option value="__custom__">+ 自定义模型...</option>`;
+
+        DOM.modelSelect.innerHTML = html;
+        DOM.modelSelect.value = targetModel;
+    }
+
+    async function fetchModels(isManual = false) {
+        if (!state.settings.apiKey) {
+            renderModelOptions(state.settings.model);
+            if (isManual) showToast('请先填写 API Key 才能同步模型');
+            return;
+        }
+
+        if (state.isFetchingModels) return;
+        state.isFetchingModels = true;
+        if (DOM.refreshModelsBtn) DOM.refreshModelsBtn.classList.add('spinning');
+
+        try {
+            const res = await fetch('https://api.deepseek.com/models', {
+                headers: { 'Authorization': `Bearer ${state.settings.apiKey}` }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const rawList = Array.isArray(data?.data) ? data.data : [];
+                if (rawList.length > 0) {
+                    const fetchedModels = rawList
+                        .map(m => typeof m === 'string' ? m : m.id)
+                        .filter(Boolean)
+                        .map(id => ({ id, label: formatModelLabel(id) }));
+
+                    const mergedMap = new Map();
+                    fetchedModels.forEach(m => mergedMap.set(m.id, m));
+                    PRESET_MODELS.forEach(m => {
+                        if (!mergedMap.has(m.id)) mergedMap.set(m.id, m);
+                    });
+
+                    state.availableModels = Array.from(mergedMap.values());
+                    try {
+                        localStorage.setItem(STORAGE_KEYS.MODELS, JSON.stringify(state.availableModels));
+                    } catch (e) {}
+
+                    renderModelOptions(state.settings.model);
+                    if (isManual) {
+                        showToast(`已从官方同步最新模型 (${fetchedModels.length} 个)`);
+                    }
+                }
+            } else if (isManual) {
+                const errData = await res.json().catch(() => null);
+                showToast(`同步失败: ${errData?.error?.message || '请检查 API Key'}`);
+            }
+        } catch (err) {
+            console.warn('获取最新模型列表失败，使用本地模型列表:', err);
+            if (isManual) showToast('网络连接失败，继续使用本地预设模型');
+        } finally {
+            state.isFetchingModels = false;
+            if (DOM.refreshModelsBtn) DOM.refreshModelsBtn.classList.remove('spinning');
+        }
+    }
+
     function bindEvents() {
         // iOS PWA height & keyboard sync
         if (window.visualViewport) {
@@ -1021,23 +1155,6 @@
             activeMessageId = null;
         }
 
-        function showToast(msg) {
-            const container = document.getElementById('toastContainer');
-            if (!container) return;
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.textContent = msg;
-            container.appendChild(toast);
-            
-            // Trigger reflow
-            void toast.offsetWidth;
-            toast.classList.add('active');
-            
-            setTimeout(() => {
-                toast.classList.remove('active');
-                setTimeout(() => toast.remove(), 300);
-            }, 2000);
-        }
 
         if (DOM.conversationMenuOverlay && DOM.conversationMenu) {
             DOM.conversationMenuOverlay.addEventListener('click', (e) => {
@@ -1209,7 +1326,8 @@
         
         DOM.settingsBtn.addEventListener('click', () => {
             DOM.apiKeyInput.value = state.settings.apiKey;
-            DOM.modelSelect.value = state.settings.model;
+            renderModelOptions(state.settings.model);
+            if (state.settings.apiKey) fetchModels(false);
             if (DOM.systemPromptInput) DOM.systemPromptInput.value = state.settings.systemPrompt || '';
             if (DOM.longTermInstructionsInput) DOM.longTermInstructionsInput.value = state.settings.longTermInstructions || DEFAULT_LONG_TERM_INSTRUCTIONS;
             updateProfileUI();
@@ -1221,7 +1339,7 @@
         });
         const closeSettings = () => {
             state.settings.apiKey = DOM.apiKeyInput.value.trim();
-            state.settings.model = DOM.modelSelect.value;
+            if (DOM.modelSelect.value && DOM.modelSelect.value !== '__custom__') state.settings.model = DOM.modelSelect.value;
             if (DOM.systemPromptInput) state.settings.systemPrompt = DOM.systemPromptInput.value;
             if (DOM.longTermInstructionsInput) state.settings.longTermInstructions = DOM.longTermInstructionsInput.value.trim() || DEFAULT_LONG_TERM_INSTRUCTIONS;
             saveData();
@@ -1296,11 +1414,36 @@
             state.settings.apiKey = DOM.apiKeyInput.value.trim();
             saveData();
             fetchBalance();
+            fetchModels(false);
         });
         DOM.modelSelect.addEventListener('change', () => {
-            state.settings.model = DOM.modelSelect.value;
-            saveData();
+            if (DOM.modelSelect.value === '__custom__') {
+                const customModel = prompt('请输入自定义模型名称（例如 deepseek-v4.1-pro 或其它模型 ID）：', state.settings.model);
+                if (customModel && customModel.trim()) {
+                    const trimmed = customModel.trim();
+                    state.settings.model = trimmed;
+                    if (!state.availableModels.some(m => m.id === trimmed)) {
+                        state.availableModels.push({ id: trimmed, label: formatModelLabel(trimmed) });
+                        try {
+                            localStorage.setItem(STORAGE_KEYS.MODELS, JSON.stringify(state.availableModels));
+                        } catch (e) {}
+                    }
+                    renderModelOptions(trimmed);
+                    saveData();
+                } else {
+                    DOM.modelSelect.value = state.settings.model;
+                }
+            } else {
+                state.settings.model = DOM.modelSelect.value;
+                saveData();
+            }
         });
+        if (DOM.refreshModelsBtn) {
+            DOM.refreshModelsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                fetchModels(true);
+            });
+        }
         if (DOM.longTermInstructionsInput) {
             DOM.longTermInstructionsInput.addEventListener('change', () => {
                 state.settings.longTermInstructions = DOM.longTermInstructionsInput.value.trim() || DEFAULT_LONG_TERM_INSTRUCTIONS;
@@ -1434,7 +1577,11 @@
         else renderActiveConversation();
         
         bindEvents();
+        renderModelOptions(state.settings.model);
         fetchBalance();
+        if (state.settings.apiKey) {
+            fetchModels(false);
+        }
     }
 
     document.addEventListener('DOMContentLoaded', init);

@@ -716,6 +716,41 @@ html[data-theme="dark"] .settings-divider { background: #38383a; }
     color: #8e8e93; font-size: 17px; font-family: var(--font-sans);
     text-align: right; outline: none; -webkit-appearance: none; appearance: none;
     direction: rtl; cursor: pointer;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.btn-refresh-models {
+    background: transparent;
+    border: none;
+    color: #8e8e93;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    padding: 0;
+    margin-left: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color 0.2s, background-color 0.2s, transform 0.15s;
+    flex-shrink: 0;
+}
+.btn-refresh-models:hover {
+    color: var(--blue-action);
+    background: rgba(0, 122, 255, 0.1);
+}
+.btn-refresh-models:active {
+    transform: scale(0.9);
+}
+.btn-refresh-models.spinning svg {
+    animation: modelSpin 0.75s linear infinite;
+}
+@keyframes modelSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .system-prompt-textarea {
